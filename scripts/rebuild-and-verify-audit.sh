@@ -63,6 +63,9 @@ printf 'GBA rules: %s/gba_rules\n' "$devkitarm"
 printf '\nRunning production Makefile build (without cleanup)...\n'
 make
 
+printf '\nRunning FAT-table capacity regression test...\n'
+scripts/test-fat-table-builder-host.sh
+
 printf '\nRunning browser installer regression scenarios...\n'
 node tests/browser-installer.mjs
 

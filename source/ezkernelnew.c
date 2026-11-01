@@ -4861,6 +4861,7 @@ u32 Check_game_RTS_FAT(TCHAR *filename,u32 game_save_rts)
 	u32 getcluster_old;
 	u32 cluster_num = 0;
 	u32 lastest_cluster;
+	u32 *FAT_table_end;
 
 	res = f_open(&file, filename, FA_READ);
 
@@ -4890,11 +4891,14 @@ u32 Check_game_RTS_FAT(TCHAR *filename,u32 game_save_rts)
 		FAT_table_P = FAT_table_buffer+ FAT_table_RTS_offset/4;
 	}
 
+	FAT_table_end = FatTableLimit(FAT_table_buffer, game_save_rts == 1);
 
-	*FAT_table_P = 0x00000000;
-	FAT_table_P++;
-	*FAT_table_P = (ClustToSect(&EZcardFs,getcluster));
-	FAT_table_P++;
+	if(!FatTableAppendPair(&FAT_table_P, FAT_table_end, 0x00000000,
+		ClustToSect(&EZcardFs,getcluster)))
+	{
+		f_close(&file);
+		return 0xffffffff;
+	}
 
 	getcluster_old = getcluster;
 	do {
@@ -4904,10 +4908,13 @@ u32 Check_game_RTS_FAT(TCHAR *filename,u32 game_save_rts)
 			#ifdef DEBUG
 				//DEBUG_printf("getcluster = %x",getcluster);
 			#endif
-			*FAT_table_P = (cluster_num * (&EZcardFs)->csize);//sector_per_cluster
-			FAT_table_P++;
-			*FAT_table_P = (ClustToSect(&EZcardFs,getcluster));//getcluster;
-			FAT_table_P++;
+			if(!FatTableAppendPair(&FAT_table_P, FAT_table_end,
+				cluster_num * (&EZcardFs)->csize,
+				ClustToSect(&EZcardFs,getcluster)))
+			{
+				f_close(&file);
+				return 0xffffffff;
+			}
 		}
 		getcluster_old = getcluster;
 	} while(getcluster < lastest_cluster);

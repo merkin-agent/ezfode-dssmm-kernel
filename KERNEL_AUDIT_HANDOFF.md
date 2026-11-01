@@ -19,7 +19,7 @@
 - Preserved source, tests, build tooling/dependencies, `files/SETTINGS.TXT`, the current release candidate, and the user-provided Claude review archive. It is now compressed at `files/claude-audit.tar.gz`; no unpacked copy remains.
 - The Claude archive was 1.1 MB unpacked and compresses to about 330 KB. The archive was verified against the source tree before removing the unpacked directory.
 - For a fresh Codespace, the archive is stored in the `copilot` branch at `files/claude-audit.tar.gz`; extract with `tar -xzf files/claude-audit.tar.gz -C files` to recreate `files/claude/`.
-- The v7.4.6b candidate is intentionally not committed (the `.bin` is ignored); restore it from the published release if needed with `gh release download v7.4.6b --repo voluptuary/ezfode-dssmm-kernel --pattern ezkernelnew.bin --dir files/candidate/7.4.6b`.
+- The v7.4.6b candidate is intentionally not committed (the `.bin` is ignored); restore it from the published release if needed with `mkdir -p files/candidate/7.4.6b && gh release download v7.4.6b --repo voluptuary/ezfode-dssmm-kernel --pattern ezkernelnew.bin --dir files/candidate/7.4.6b`.
 
 ## Restart handoff (2026-11-01)
 

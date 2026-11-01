@@ -1,5 +1,13 @@
 # DS Style Kernel Audit Progress
 
+## 2026-11-01 — Codespace restart readiness and branch synchronization
+
+- **Branch state:** `main` and `copilot` were synchronized at `dc8038a61a9b9d94017f7fa3085d0e71538749b6`. Both local branches and both `origin` refs resolve to that commit. Worktree was clean before this documentation update.
+- **Handoff correction:** the older handoff instructed a new agent to switch to `copilot` and avoid `main`. That is superseded; the current handoff now says to fetch, verify `origin/main` and `origin/copilot` match, and continue from default `main` without switching.
+- **Toolchain verification:** the current Codespace has devkitARM 16.1.0, Make, Node, Cppcheck, and `/opt/devkitpro/devkitARM/gba_rules`. `bash scripts/rebuild-and-verify-audit.sh` passed, including the production build (2,066,312-byte `.gba`, 30,840 bytes below the 2 MiB limit), FAT-table test, browser installer scenarios, JavaScript syntax checks, whitespace check, and targeted Cppcheck.
+- **Host regression verification:** all 12 `scripts/test-*-host.sh` suites passed. The cheat-row fixture emitted its documented signedness and unused-parameter compiler warnings. `make clean` removed generated build artifacts afterward; `git diff --check` passed. No hardware testing was performed.
+- **Fresh Codespace caveat:** the tracked devcontainer pins `devkitpro/devkitarm:20260610` and exports the toolchain paths. This makes the build setup reproducible, but a fresh Codespace still needs to build/pull the image and fetch the Git repository; this session cannot guarantee external image-registry/Codespaces availability or persistence of ad hoc tools/authentication.
+
 ## 2026-11-01 — Hardware feedback and fragmented-SD table bound
 
 - **Settings hardware follow-up:** the owner reports that hardware testing of the current v7.4.6b build shows no further settings-persistence issues. The observed S71 symptom is not currently reproducing on that build. This does not close the distinct `/SYSTEM/SETTINGS.TXT` failure risk: `Launcher_SaveUnifiedSettings()` still replaces the file with `FA_CREATE_ALWAYS` and does not verify every serialization/close result. Keep the historical startup/thumbnail report separate.

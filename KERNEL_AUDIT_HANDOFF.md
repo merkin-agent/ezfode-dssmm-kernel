@@ -14,13 +14,14 @@
 - Removed superseded candidates `files/candidate/7.4.6/ezkernelnew.bin` and `files/candidate/ezkernelnew-stack-relocation.bin`. The released `files/candidate/7.4.6b/ezkernelnew.bin` remains intact (2,066,272 bytes; SHA-256 `558e332d2aa7a0f8b3e90f9757ebe8e5e37477a75fd155798633e1d63b8e7f56`).
 - Removed stale timing-diagnostic notes `files/candidate/README-timing-diagnostics.txt` and `files/candidate/diagnostic-report.txt`; their historical results remain recorded in this ledger.
 - Verified a forced clean `make -B` build succeeds at 2,066,272 bytes, then ran `make clean` again. The build environment is ready for a fresh build and no generated build tree remains.
-- Preserved source, tests, build tooling/dependencies, `files/SETTINGS.TXT`, the current release candidate, and the user-provided `files/claude/` archive. The latter remains untracked; do not remove it or stage it as part of this cleanup.
+- Preserved source, tests, build tooling/dependencies, `files/SETTINGS.TXT`, the current release candidate, and the user-provided Claude review archive. It is now compressed at `files/claude-audit.tar.gz`; no unpacked copy remains.
+- The Claude archive was 1.1 MB unpacked and compresses to about 330 KB. The archive was verified against the source tree before removing the unpacked directory.
 
 ## Current continuation — Claude patch review completed (2026-11-01)
 
-- **Completed task:** reviewed every file under `files/claude`; applied only patches 0002, 0005, 0010, 0011, 0013, and 0015. The remaining patch dispositions and per-patch reasons are recorded at the top of `KERNEL_AUDIT_PROGRESS.md`.
+- **Completed task:** reviewed every file in `files/claude-audit.tar.gz` (originally `files/claude/`); applied only patches 0002, 0005, 0010, 0011, 0013, and 0015. The remaining patch dispositions and per-patch reasons are recorded at the top of `KERNEL_AUDIT_PROGRESS.md`.
 - **Branch/base at review start:** checkout was `copilot` at `56788ed`; `origin/codespace` was `83e350d`, one commit ahead. At review start, the tracked working tree matched that remote snapshot; the selected patch changes are now additional local modifications. The patch bundle declares `83e350d` as its base and states it was not hardware-tested.
-- **Worktree:** existing tracked audit/source changes cover S71 settings-only legacy polling rollback, NOR scan redraw cadence, and follow-up documentation. `files/agent_prompt.txt` and the complete `files/claude/` bundle are user-provided; do not overwrite or stage them.
+- **Worktree:** existing tracked audit/source changes cover S71 settings-only legacy polling rollback, NOR scan redraw cadence, and follow-up documentation. `files/agent_prompt.txt` and `files/claude-audit.tar.gz` are user-provided; preserve them, and do not stage the archive without an explicit request.
 - **Constraints preserved:** all changes are hardware-revision agnostic and the built kernel remains <= 2 MiB. The displayed version was not changed to `v7.4.5c`; the proposed `-Os` default was not adopted. Splash/background compression remain declined and the diagnostics logger deferred.
 - **Validation:** the integrated tree builds to 2,066,232 bytes (30,920 bytes below the cap); all 11 host suites and the browser installer scenarios pass. Dead-code removal was independently confirmed to leave target code/data identical at `-O` and `-Os` after stripping debug metadata. No hardware test was performed and no candidate artifact was staged.
 

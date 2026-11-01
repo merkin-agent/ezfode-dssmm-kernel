@@ -24,9 +24,9 @@ u8 IWRAM_CODE Wait_Flash_Operation(vu16 *flash, vu16 *target, u16 expected,
 	u8 write_buffer, NOR_FlashProgressCallback progress, void *progress_context);
 u8 IWRAM_CODE Verify_Flash_Erased(vu16 *start, u32 word_count);
 u8 IWRAM_CODE Verify_Flash_Data(vu16 *start, const vu16 *expected, u32 word_count);
-u8 IWRAM_CODE Save_sav_info(u16 * SAV_info_buffer,u32 buffersize);
-u8 IWRAM_CODE Save_NOR_info(u16 * NOR_info_buffer,u32 buffersize);
-u8 IWRAM_CODE Save_SET_info(u16 * SET_info_buffer,u32 buffersize);
+u8 Save_sav_info(u16 * SAV_info_buffer,u32 buffersize);
+u8 Save_NOR_info(u16 * NOR_info_buffer,u32 buffersize);
+void Save_SET_info(u16 * SET_info_buffer,u32 buffersize);
 void IWRAM_CODE Read_NOR_info();
 u16 IWRAM_CODE Read_SET_info(u32 offset);
 u32 Loadfile2PSRAM(TCHAR *filename);

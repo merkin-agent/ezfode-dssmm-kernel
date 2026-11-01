@@ -146,9 +146,11 @@ $(OUTPUT).gba	:	$(OUTPUT).elf
 	$(SILENTCMD)gbafix $@ -t$(GAME_TITLE) -c$(GAME_CODE) -m$(MAKER_CODE)
 	@rom_size=$$(wc -c < "$@"); \
 	if [ "$$rom_size" -gt "$(KERNEL_SIZE_LIMIT)" ]; then \
+		rm -f "$@"; \
 		echo "Kernel image exceeds the 2 MiB compatibility limit: $$rom_size bytes." >&2; \
 		exit 1; \
-	fi
+	fi; \
+	echo "Kernel image: $$rom_size bytes, $$(( $(KERNEL_SIZE_LIMIT) - rom_size )) bytes below the 2 MiB limit"
 
 $(OUTPUT).elf	:	$(OFILES)
 

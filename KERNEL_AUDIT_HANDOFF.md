@@ -920,3 +920,11 @@ The release was created and subsequently corrected to use the cartridge-required
 1. Continue F-022 timing/device review as listed in the latest verified repository checkpoint at the top of this file. Retain the no-finite-timeout finding unless complete, calibrated bounds cover all supported device operations.
 2. Keep F-037 out of active defect priority unless exact original-DE part marking, BOM, or safe ID capture establishes the candidate OPN and topology. Do not infer original-DE support from the DE B changelog.
 3. Then assess F-032 and F-036 with explicit fault-injection/recovery matrices. Preserve user files and existing release assets; do not perform destructive hardware flash operations.
+
+## 2026-11-01 — DS Style Merkin Mix 8.0.0 published
+
+- Published the stable `v8.0.0` release at https://github.com/voluptuary/ezfode-dssmm-kernel/releases/tag/v8.0.0. The About screen and changelog use `DS Style Merkin Mix 8.0.0` without a leading `v`; the Git tag retains the repository's `v` convention.
+- Release commit: `ed0f530a7e43d72e449ac00ddd6807ccb35e43e4` on `copilot`.
+- Asset: `ezkernelnew.bin`, 2,066,312 bytes; SHA-256 `f7b258acd3914f816bc69e8aaa49c270562015b9737e0490989c414fe8980cf2`. Downloaded the published asset and verified it byte-for-byte against the release candidate.
+- Validation: production build, FAT-table host regression, browser installer scenarios, JavaScript syntax, whitespace check, and targeted Cppcheck passed. The linked binary contains the exact About string. Fragmented-card handling has host coverage only; this release does not claim physical-cartridge testing.
+- The user's hardware report says settings persistence no longer reproduces on the tested v7.4.6b build. Keep that separate from the remaining audit findings; F-022, F-032, and F-036 remain open, along with the other unresolved items listed above.

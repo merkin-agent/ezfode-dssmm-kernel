@@ -1,4 +1,4 @@
-# DS Style Kernel for EZ-FLASH OMEGA Definitive Edition
+# DS Style Merkin Mix Kernel for EZ-FLASH OMEGA Definitive Edition
 
 DS Style is a custom kernel for the **EZ-FLASH OMEGA Definitive Edition**. It is based on the official EZ-FLASH OMEGA DE kernel source and Sterophonick's SimpleLight custom kernel and replaces the stock launcher with a Nintendo DS-inspired interface, theme system, thumbnail views, language options, and related quality-of-life changes.
 

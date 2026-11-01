@@ -1,52 +1,28 @@
 # Changelog
 
-## DS Style v7.4.6b (test build)
+## DS Style Merkin Mix 8.0.0
 
-This test build includes the v7.4.6 fixes and follow-up improvements. It has not been tested on hardware.
+This build includes the v7.4.6b fixes and follow-up improvements.
 
-### New features since v7.4.5
+### New features since v7.4.6b
 
-- No new user-facing features.
+- No features this time, just fixes and optimizations.
 
-### New fixes since v7.4.5
+### New fixes since v7.4.6b
 
-- Kept the kernel image within the supported 2 MiB limit. Oversized builds now fail reliably without leaving a stale image that could be mistaken for a successful build.
-- Improved save handling: failed first-time saves no longer leave incomplete files behind, and errors checking an existing save are not mistaken for a missing save.
-- Improved cartridge-flash operation checks and feedback, and refresh the game list after a successful format.
-- Avoided unnecessary cartridge-info writes when the stored data is unchanged.
-- Reduced NOR format progress redraw overhead while keeping the full erase verification.
-- Fixed NOR format confirmation and progress redraws so they clear the full menu row instead of overlapping the delete notice.
-- Fixed cheat-file parsing so values from one entry cannot carry over into the next.
-- Restored the established settings-save polling behavior while retaining the newer checks for other cartridge records. This test build has not been hardware-tested, so settings persistence still needs verification.
-- Consolidated settings readers and removed unused code without intentionally changing settings-file behavior.
+- Prevented highly fragmented ROM and RTS files from overflowing the fixed FPGA FAT-table transfer buffer. Files whose fragment tables exceed the supported capacity are rejected instead of sending a corrupted table.
+- This fragmented-card fix passed the host regression suite but has not been tested with a physical cartridge and highly fragmented SD card. Please report any issues.
+- Updated the Help > About screen to show the DS Style Merkin Mix name and build number.
 
 ### Features added through v7.4.5
 
 - **v7.4.5:** Added an optional Wrap around setting for browser navigation.
 - **v7.4.3:** Added SD-card mirrored artwork lookup with custom and built-in thumbnail fallbacks, selective transparency for marked BMP thumbnails, and refreshed console icons and startup artwork.
-- **v7.4:** Added a text and Markdown viewer with light/dark display options and simple formatting, plus optional wide and square folder artwork for supported systems.
-- **v7.3:** Added support for full-screen themes without a separate top bar.
-- **v7.1:** Added List + Art view with a floating thumbnail at the top, centre, or bottom; expanded in-kernel guidance and refined menus.
-- **v7.0:** Added hidden system files, kernel style loading, 12/24-hour clocks, art borders, rounded corners, clean lists, folder-only lists, carousel side-art alignment, empty-folder/favourites messages, NOR title thumbnails, Thai language support, categorised Settings and Help pages, and built-in setting explanations; overhauled cheat selection.
-- **v6.7:** Separated Start screen enablement from its Last Played/Favourites source; added direct Recently Played startup on the SD page and Select/L/R switching between recent and favourite lists.
-- **v6.6:** Added custom artwork for folders and files, scraper integration, an editable CUSTOM artwork example, cached artwork names, and support for 120 x 80 title and 80 x 80 box thumbnails (up to 256 images per CUSTOM folder).
-- **v6.5:** Added an Off option for the Start screen source to open the SD browser directly.
-- **v6.4:** Added multi-language launcher support, Chinese language handling while retaining the DS Style font for Latin text, customisable launcher text, Start screen layout options, and thumbnail-border settings.
 
 ### Fixes through v7.4.5
 
-- **v7.4.5:** Fixed game launch with Enable BIOS off; improved long directory-name display, selection, save paths, and artwork lookup when folder aliases differ; reduced repeat directory scans during thumbnail browsing; and updated launcher stack/heap placement for FatFs long-filename handling.
+- **v7.4.5:** Fixed game launch with Enable BIOS off that was broken with a previous fix; improved long directory-name display, selection, save paths, and artwork lookup when folder aliases differ; reduced repeat directory scans during thumbnail browsing; and updated launcher stack/heap placement for FatFs long-filename handling.
 - **v7.4.3:** Hardened NOR catalog bounds, title sizes, source reads, block padding, metadata commits, interrupt restoration, and trim-probe arithmetic. Limited deletion to a verified newest title, fixed NOR progress redraws, hardened SD sector and save/RTS I/O checks, bounded paths and malformed cheat data, fixed PSRAM writes across 8 MiB boundaries and rejected odd-address writes, updated NOR guidance, and aligned installer regression expectations with the shipped packages.
-- **v7.4:** Fixed empty Recently Played/Favourites crashes, restored support for 512 files per folder while reducing RAM use, fixed clean software-boot compatibility, and prevented RECENT.txt corruption at its ten-game limit.
-- **v7.4.1:** Prevented failed SD reads from being used as valid save, save-state, or sector data; checked save/RTS write results and retained pending recovery after failures; bounded folder paths, cheat filenames and records, and fixed-width save/RTS names; initialized folder counts after SD recounts; fixed PSRAM patch writes across 8 MiB boundaries; and corrected installer test expectations.
-- **v7.3:** Fixed translated save-type text overlap, improved List + Art redraws, refreshed Help clock/page numbers, refined cheat selection redraws, and fixed horizontal carousel border flicker.
-- **v7.2:** Fixed Chinese text on the loading screen and custom backgrounds shifting or repeating in list views.
-- **v7.1:** Improved list, carousel, and popup redraws; fixed translated launch-menu text; improved input handling between Settings, SD Card, and NOR Flash; and kept the launcher clock independent of the in-game RTC setting.
-- **v7.0:** Fixed empty-view messages, improved menu use of memory, refined cheat selection, splash timing, and Settings tab restoration.
-- **v6.9:** Improved launcher stability, bounded cheat entries to available patch space, refined list scrolling and navigation, and made menu audio playback safer.
-- **v6.8:** Fixed translated settings resetting or loading incorrectly, improved accented filename support, and corrected language values written to SETTINGS.TXT.
-- **v6.5:** Fixed Start-screen back navigation when the screen is disabled and improved held-button scrolling in game-launch menus.
-- **v6.4:** Added safer file-copy, backup, thumbnail-read, and directory-bound handling, and kept the Omega DE and Original Omega source lines aligned where features overlap.
 
 These changes and fixes were completed with the assistance of AI.
 

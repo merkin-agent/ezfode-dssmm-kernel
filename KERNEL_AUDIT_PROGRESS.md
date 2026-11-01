@@ -8,6 +8,15 @@
 - The Codespaces workspace path remains `/workspaces/omega-de-ds-style-multisystem-kernel`; no working-tree source or firmware behavior changed for the repository rename.
 - Current release state: commit `4c7c5e8` is on `copilot`, and prerelease `v7.4.6b` is published at `https://github.com/voluptuary/ezfode-dssmm-kernel/releases/tag/v7.4.6b`.
 
+## 2026-11-01 — Workspace storage cleanup
+
+- **Removed generated outputs:** deleted `build/`, root `.elf`/`.gba` outputs, and old root kernel `.bin` copies. These are reproducible and ignored by Git.
+- **Removed superseded binaries:** deleted `files/candidate/7.4.6/ezkernelnew.bin` and `files/candidate/ezkernelnew-stack-relocation.bin`. Retained the published v7.4.6b candidate, 2,066,272 bytes, SHA-256 `558e332d2aa7a0f8b3e90f9757ebe8e5e37477a75fd155798633e1d63b8e7f56`.
+- **Removed stale diagnostics:** deleted tracked `files/candidate/README-timing-diagnostics.txt` and `files/candidate/diagnostic-report.txt`; timing-trace binaries were already absent, and the results remain in the audit history.
+- **Preserved:** source, test fixtures/scripts, toolchain inputs, `files/SETTINGS.TXT`, the current release candidate, and the user-provided untracked `files/claude/` patch archive.
+- **Validation:** after cleanup, `make -B` rebuilt successfully with devkitARM 16.1.0 at 2,066,272 bytes (30,880 bytes below 2 MiB). `make clean` then removed all build outputs again. `git diff --check` passes.
+- This is a workspace cleanup only; no source behavior changed. The current modified/deleted files should be committed and pushed on `copilot`; do not stage `files/claude/`.
+
 ## 2026-11-01 — Claude patch bundle review completed
 
 - **Scope and preserved state:** reviewed the README, Claude handoff/progress files, and all 17 patches. The working tree's prior S71 settings rollback, 8 MiB redraw cadence, and audit changes remain intact. User-provided `files/agent_prompt.txt` and `files/claude/` were not modified or staged. The version label remains unchanged; no candidate was created and no commit/push or hardware test was performed.

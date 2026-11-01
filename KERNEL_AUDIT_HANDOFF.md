@@ -8,6 +8,14 @@
 - This handoff is now `KERNEL_AUDIT_HANDOFF.md`; the companion progress ledger is `KERNEL_AUDIT_PROGRESS.md`.
 - The latest release commit is `4c7c5e8` (`Prepare DS Style v7.4.6b test release`); the prerelease asset and notes are published at the v7.4.6b release URL above.
 
+## Current workspace cleanup (2026-11-01)
+
+- Removed ignored compiler outputs (`build/`, root `.elf`/`.gba`, and old root `.bin` copies) using `make clean` plus explicit removal of obsolete images.
+- Removed superseded candidates `files/candidate/7.4.6/ezkernelnew.bin` and `files/candidate/ezkernelnew-stack-relocation.bin`. The released `files/candidate/7.4.6b/ezkernelnew.bin` remains intact (2,066,272 bytes; SHA-256 `558e332d2aa7a0f8b3e90f9757ebe8e5e37477a75fd155798633e1d63b8e7f56`).
+- Removed stale timing-diagnostic notes `files/candidate/README-timing-diagnostics.txt` and `files/candidate/diagnostic-report.txt`; their historical results remain recorded in this ledger.
+- Verified a forced clean `make -B` build succeeds at 2,066,272 bytes, then ran `make clean` again. The build environment is ready for a fresh build and no generated build tree remains.
+- Preserved source, tests, build tooling/dependencies, `files/SETTINGS.TXT`, the current release candidate, and the user-provided `files/claude/` archive. The latter remains untracked; do not remove it or stage it as part of this cleanup.
+
 ## Current continuation — Claude patch review completed (2026-11-01)
 
 - **Completed task:** reviewed every file under `files/claude`; applied only patches 0002, 0005, 0010, 0011, 0013, and 0015. The remaining patch dispositions and per-patch reasons are recorded at the top of `KERNEL_AUDIT_PROGRESS.md`.

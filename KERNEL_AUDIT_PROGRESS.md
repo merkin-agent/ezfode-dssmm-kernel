@@ -17,7 +17,8 @@
 - **Validation:** after cleanup, `make -B` rebuilt successfully with devkitARM 16.1.0 at 2,066,272 bytes (30,880 bytes below 2 MiB). `make clean` then removed all build outputs again. `git diff --check` passes.
 - This is a workspace cleanup only; no source behavior changed. Its cleanup changes were committed as `090ecd2`; the Claude archive was intentionally left untracked.
 - The existing Claude bundle compressed from 1,054,720 bytes to 337,630 bytes (about 68% smaller). `tar -df` confirmed every archived member matches the unpacked tree before removal; archive extraction recreates `files/claude/`. Archive SHA-256: `3f0ca3e0df8433241a01005a432258fcc04519a68770aeee6157e60879cbc0c6`.
-- **Restart preparation:** user plans to close this Codespace and continue from the renamed repository. The audit handoff identifies `copilot` as the continuation branch (not default `main`), the Claude archive has been added to the branch so it survives a fresh Codespace, and the v7.4.6b binary can be restored from its published prerelease. Build outputs remain cleaned.
+- **Restart preparation:** user plans to close this Codespace and continue from the renamed repository. The audit handoff identifies `copilot` as the continuation branch (not default `main`), the Claude archive has been added to the branch so it survives a fresh Codespace, and the v7.4.6b binary can be restored from its published release. Build outputs remain cleaned.
+- **Durable state:** commit `230458f91ee93221c2a6796f48e51fac85c37b17` (`Prepare durable Codespace restart handoff`) is pushed to `origin/copilot`; archive bytes in Git match the verified local archive checksum. GitHub currently marks the v7.4.6b release as non-prerelease.
 
 ## 2026-11-01 — Claude patch bundle review completed
 

@@ -8,6 +8,7 @@
 - This handoff is now `KERNEL_AUDIT_HANDOFF.md`; the companion progress ledger is `KERNEL_AUDIT_PROGRESS.md`.
 - The v7.4.6b release commit is `4c7c5e8` (`Prepare DS Style v7.4.6b test release`); its asset and notes are published at `https://github.com/voluptuary/ezfode-dssmm-kernel/releases/tag/v7.4.6b`.
 - The current continuation branch is `copilot`, not the repository default `main`. At restart, fetch and switch to `origin/copilot` before continuing; it contains the release, audit fixes, review decisions, and this handoff.
+- The fully pushed restart handoff is commit `230458f91ee93221c2a6796f48e51fac85c37b17` on `origin/copilot`.
 
 ## Current workspace cleanup (2026-11-01)
 
@@ -25,7 +26,7 @@
 - All in-progress code and audit documentation is committed and pushed on `origin/copilot`. Confirm the exact latest HEAD with `git fetch origin && git log -1 --oneline origin/copilot`.
 - In a new Codespace created from the renamed repository, verify `git remote -v`, then switch from the default branch to `copilot` (`git switch --track origin/copilot` if no local `copilot` exists). Do not merge this branch into `main` unless asked.
 - The Claude source bundle is tracked at `files/claude-audit.tar.gz`; its SHA-256 is `3f0ca3e0df8433241a01005a432258fcc04519a68770aeee6157e60879cbc0c6`. Extract only if individual archived files are needed.
-- The published binary is downloadable from the v7.4.6b prerelease; its SHA-256 is `558e332d2aa7a0f8b3e90f9757ebe8e5e37477a75fd155798633e1d63b8e7f56`. A fresh build environment can be validated with `make -B`, then cleaned with `make clean`.
+- The published v7.4.6b release asset is downloadable with the command above; its SHA-256 is `558e332d2aa7a0f8b3e90f9757ebe8e5e37477a75fd155798633e1d63b8e7f56`. A fresh build environment can be validated with `make -B`, then cleaned with `make clean`.
 - No generated build outputs remain. Hardware testing of v7.4.6b is still outstanding; do not describe the candidate as hardware validated.
 - Continue the audit from the open issues and next steps later in this handoff/progress ledger. Preserve the hardware-revision-agnostic constraint.
 

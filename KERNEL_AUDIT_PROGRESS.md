@@ -9,6 +9,11 @@
 - **Persistence:** implementation and initial audit documentation were committed as `77ed01ca27516c9a1ae0f4a13cba628f4eb3862d`; exact-function regression coverage followed in `8a74aa2cd87d132cc726c8f2226fb994e2fa2b60`. Both are pushed to `origin/copilot`; a fetch verified local and remote HEAD match. Generated build outputs were cleaned after the original validation; the later host-only test refinement did not change firmware. The existing published v7.4.6b artifact was not modified; this source fix still needs a candidate build and hardware verification before release.
 - F-036 remains independently confirmed: a failed replacement can remove an existing save after `FA_CREATE_ALWAYS`. F-032 still lacks a safe, revision-agnostic catalog recovery layout; F-022 still lacks sufficient accepted-device timing evidence for defensible finite timeouts. No speculative design is being applied to those findings.
 
+## 2026-11-01 — About screen build branding
+
+- Updated the Settings → Help → About first line from the release string `DS Style v7.4.6b` to `DS Style Merkin Mix 1`. The separate `LAUNCHER_BUILD_NUMBER` is now defined in `source/launcher_version.h`; use the next integer for each subsequent branded build. This does not change release tags or other version metadata.
+- Forced target build passed at 2,066,312 bytes (30,840 bytes below the 2 MiB limit). Confirmed the built ROM contains the exact string `DS Style Merkin Mix 1`; the focused FAT-table host regression also passes. No hardware testing was performed for this display-only change.
+
 ## 2026-11-01 — Repository renamed; audit documents renamed
 
 - The GitHub repository was renamed from `voluptuary/omega-de-ds-style-multisystem-kernel` to `voluptuary/ezfode-dssmm-kernel`; its URL is now `https://github.com/voluptuary/ezfode-dssmm-kernel`.

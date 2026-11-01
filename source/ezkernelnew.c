@@ -12216,7 +12216,7 @@ static void Launcher_ShowHelpTopic(u32 topic)
     };
     static const char *const about_lines[] =
     {
-        "DS Style " LAUNCHER_VERSION_TEXT,
+        "DS Style Merkin Mix " LAUNCHER_BUILD_NUMBER,
         "Nintendo DS inspired kernel",
         "for EZ-Flash Omega and",
         "Omega Definitive Edition.",

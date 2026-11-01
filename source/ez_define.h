@@ -1,6 +1,8 @@
 #ifndef EZ_DEFINE_HEADER
 #define EZ_DEFINE_HEADER
 
+#include "fat_table_builder.h"
+
 #define MAX_pReadCache_size 0x20000
 #define MAX_files     0x200
 #define MAX_folder    0x60
@@ -8,9 +10,9 @@
 
 #define MAX_path_len 0x100
 
-#define FAT_table_size 0x400
+#define FAT_table_size FAT_TABLE_SIZE_BYTES
 //#define FAT_table_SAV_offset 0x200
-#define FAT_table_RTS_offset 0x300
+#define FAT_table_RTS_offset FAT_TABLE_RTS_OFFSET_BYTES
 
 #define DEBUG
 

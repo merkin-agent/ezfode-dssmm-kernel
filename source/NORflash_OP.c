@@ -83,11 +83,10 @@ static u8 NOR_EraseAllPPB(void)
 #define NOR_WINDOW_BYTES   0x00800000UL
 #define NOR_BLOCK_SIZE     0x00020000UL
 #define NOR_MENU_WIDTH     168
-#define NOR_MENU_CROP_X    20
 #define NOR_MENU_CROP_Y    78
-#define NOR_PROGRESS_X     56
+#define NOR_PROGRESS_X     36
 #define NOR_PROGRESS_Y     103
-#define NOR_PROGRESS_W     128
+#define NOR_PROGRESS_W     168
 #define NOR_PROGRESS_H     13
 
 static void NOR_RestoreFormatProgressBackground(void)
@@ -98,7 +97,7 @@ static void NOR_RestoreFormatProgressBackground(void)
 	// The menu art is 168 pixels wide; DrawPic uses its width as the source stride.
 	for(row = 0; row < NOR_PROGRESS_H; row++)
 	{
-		DrawPic((u16*)(menu + (NOR_MENU_CROP_Y + row) * NOR_MENU_WIDTH + NOR_MENU_CROP_X),
+		DrawPic((u16*)(menu + (NOR_MENU_CROP_Y + row) * NOR_MENU_WIDTH),
 			NOR_PROGRESS_X, NOR_PROGRESS_Y + row, NOR_PROGRESS_W, 1, 0, 0, 1);
 	}
 }
@@ -222,7 +221,8 @@ u8 Chip_Erase()
 				REG_IME = old_ime;
 				return 0;
 			}
-			if((byte_offset & 0x000FFFFF) == 0x000FFFFE)
+			/* Keep verifying every word, but redraw only once per 8 MiB bank. */
+			if((byte_offset & 0x007FFFFF) == 0x007FFFFE)
 				NOR_ChipEraseProgress(&count);
 		}
 	}
@@ -247,7 +247,9 @@ u8 FormatNor()
 		if (keys & KEY_A) {
 			if(!Chip_Erase())
 				return 2;
-			memset(pNorFS,00,sizeof(FM_NOR_FS)*MAX_NOR);
+			if(!NOR_ClearCatalogAndPersist(pNorFS,
+				sizeof(FM_NOR_FS)*MAX_NOR, NOR_PersistCatalog, pNorFS))
+				return 3;
 			return 1;
 		}
 		else if(keys & KEY_B) {

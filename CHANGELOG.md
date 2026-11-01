@@ -1,9 +1,35 @@
 # Changelog
 
-## DS Style v7.4.6-test (hardware-test candidate)
+## DS Style Merkin Mix 8.0.0
 
-- Built from the current audit branch with the EWRAM user-stack relocation and S71 VBlank masking for hardware verification.
-- This candidate has not been tested on a physical cartridge and is not a published release. Keep a known-good kernel available for recovery.
+This build includes the v7.4.6b fixes and follow-up improvements.
+
+### New features since v7.4.6b
+
+- No features this time, just fixes and optimizations.
+
+### New fixes since v7.4.6b
+
+- Prevented highly fragmented ROM and RTS files from overflowing the fixed FPGA FAT-table transfer buffer. Files whose fragment tables exceed the supported capacity are rejected instead of sending a corrupted table.
+- This fragmented-card fix passed the host regression suite but has not been tested with a physical cartridge and highly fragmented SD card. Please report any issues.
+- Updated the Help > About screen to show the DS Style Merkin Mix name and build number.
+
+### Features added through v7.4.6b
+
+- **v7.4.6b:** No new user-facing features; this build focused on fixes and optimizations.
+- **v7.4.5:** Added an optional Wrap around setting for browser navigation.
+- **v7.4.3:** Added SD-card mirrored artwork lookup with custom and built-in thumbnail fallbacks, selective transparency for marked BMP thumbnails, and refreshed console icons and startup artwork.
+
+### Fixes through v7.4.6b
+
+- **v7.4.6b:** Kept the kernel image within the supported 2 MiB limit, with oversized builds failing reliably instead of leaving a stale image that could appear successful. Improved save handling so failed first-time saves do not leave incomplete files and errors checking existing saves are not mistaken for missing saves.
+- **v7.4.6b:** Improved cartridge-flash operation checks and feedback, refreshed the game list after successful formatting, avoided unnecessary cartridge-info writes, reduced NOR format progress redraw overhead while retaining full erase verification, and fixed format confirmation/progress redraws to clear the full menu row.
+- **v7.4.6b:** Fixed cheat-file parsing so values from one entry cannot carry over into the next. This feature has not been hardware-tested; please report any issues.
+- **v7.4.6b:** Restored the established settings-save polling behavior while retaining newer checks for other cartridge records, and consolidated settings readers while removing unused code. Subsequent hardware testing on v7.4.6b has not reproduced the reported settings-persistence issue.
+- **v7.4.5:** Fixed game launch with Enable BIOS off that was broken with a previous fix; improved long directory-name display, selection, save paths, and artwork lookup when folder aliases differ; reduced repeat directory scans during thumbnail browsing; and updated launcher stack/heap placement for FatFs long-filename handling.
+- **v7.4.3:** Hardened NOR catalog bounds, title sizes, source reads, block padding, metadata commits, interrupt restoration, and trim-probe arithmetic. Limited deletion to a verified newest title, fixed NOR progress redraws, hardened SD sector and save/RTS I/O checks, bounded paths and malformed cheat data, fixed PSRAM writes across 8 MiB boundaries and rejected odd-address writes, updated NOR guidance, and aligned installer regression expectations with the shipped packages.
+
+These changes and fixes were completed with the assistance of AI.
 
 ## DS Style v7.4.1
 

@@ -5,8 +5,8 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "${script_dir}/.." && pwd)"
 cd "$repo_root"
 
-if [[ ! -f CODEX_KERNEL_AUDIT_PROGRESS.md ]]; then
-	printf 'Audit checkpoint is missing: %s/CODEX_KERNEL_AUDIT_PROGRESS.md\n' "$repo_root" >&2
+if [[ ! -f KERNEL_AUDIT_PROGRESS.md ]]; then
+	printf 'Audit checkpoint is missing: %s/KERNEL_AUDIT_PROGRESS.md\n' "$repo_root" >&2
 	exit 1
 fi
 
@@ -62,6 +62,9 @@ printf 'GBA rules: %s/gba_rules\n' "$devkitarm"
 
 printf '\nRunning production Makefile build (without cleanup)...\n'
 make
+
+printf '\nRunning FAT-table capacity regression test...\n'
+scripts/test-fat-table-builder-host.sh
 
 printf '\nRunning browser installer regression scenarios...\n'
 node tests/browser-installer.mjs

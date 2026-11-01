@@ -6,7 +6,8 @@
 - The local Codespaces workspace directory remains `/workspaces/omega-de-ds-style-multisystem-kernel`; only the GitHub repository name changed.
 - `origin` points to the renamed repository and fetch was verified. The active `copilot` branch and `v7.4.6b` tag are present there.
 - This handoff is now `KERNEL_AUDIT_HANDOFF.md`; the companion progress ledger is `KERNEL_AUDIT_PROGRESS.md`.
-- The latest release commit is `4c7c5e8` (`Prepare DS Style v7.4.6b test release`); the prerelease asset and notes are published at the v7.4.6b release URL above.
+- The v7.4.6b release commit is `4c7c5e8` (`Prepare DS Style v7.4.6b test release`); its asset and notes are published at `https://github.com/voluptuary/ezfode-dssmm-kernel/releases/tag/v7.4.6b`.
+- The current continuation branch is `copilot`, not the repository default `main`. At restart, fetch and switch to `origin/copilot` before continuing; it contains the release, audit fixes, review decisions, and this handoff.
 
 ## Current workspace cleanup (2026-11-01)
 
@@ -16,12 +17,23 @@
 - Verified a forced clean `make -B` build succeeds at 2,066,272 bytes, then ran `make clean` again. The build environment is ready for a fresh build and no generated build tree remains.
 - Preserved source, tests, build tooling/dependencies, `files/SETTINGS.TXT`, the current release candidate, and the user-provided Claude review archive. It is now compressed at `files/claude-audit.tar.gz`; no unpacked copy remains.
 - The Claude archive was 1.1 MB unpacked and compresses to about 330 KB. The archive was verified against the source tree before removing the unpacked directory.
+- For a fresh Codespace, the archive is stored in the `copilot` branch at `files/claude-audit.tar.gz`; extract with `tar -xzf files/claude-audit.tar.gz -C files` to recreate `files/claude/`.
+- The v7.4.6b candidate is intentionally not committed (the `.bin` is ignored); restore it from the published release if needed with `gh release download v7.4.6b --repo voluptuary/ezfode-dssmm-kernel --pattern ezkernelnew.bin --dir files/candidate/7.4.6b`.
+
+## Restart handoff (2026-11-01)
+
+- All in-progress code and audit documentation is committed and pushed on `origin/copilot`. Confirm the exact latest HEAD with `git fetch origin && git log -1 --oneline origin/copilot`.
+- In a new Codespace created from the renamed repository, verify `git remote -v`, then switch from the default branch to `copilot` (`git switch --track origin/copilot` if no local `copilot` exists). Do not merge this branch into `main` unless asked.
+- The Claude source bundle is tracked at `files/claude-audit.tar.gz`; its SHA-256 is `3f0ca3e0df8433241a01005a432258fcc04519a68770aeee6157e60879cbc0c6`. Extract only if individual archived files are needed.
+- The published binary is downloadable from the v7.4.6b prerelease; its SHA-256 is `558e332d2aa7a0f8b3e90f9757ebe8e5e37477a75fd155798633e1d63b8e7f56`. A fresh build environment can be validated with `make -B`, then cleaned with `make clean`.
+- No generated build outputs remain. Hardware testing of v7.4.6b is still outstanding; do not describe the candidate as hardware validated.
+- Continue the audit from the open issues and next steps later in this handoff/progress ledger. Preserve the hardware-revision-agnostic constraint.
 
 ## Current continuation — Claude patch review completed (2026-11-01)
 
 - **Completed task:** reviewed every file in `files/claude-audit.tar.gz` (originally `files/claude/`); applied only patches 0002, 0005, 0010, 0011, 0013, and 0015. The remaining patch dispositions and per-patch reasons are recorded at the top of `KERNEL_AUDIT_PROGRESS.md`.
 - **Branch/base at review start:** checkout was `copilot` at `56788ed`; `origin/codespace` was `83e350d`, one commit ahead. At review start, the tracked working tree matched that remote snapshot; the selected patch changes are now additional local modifications. The patch bundle declares `83e350d` as its base and states it was not hardware-tested.
-- **Worktree:** existing tracked audit/source changes cover S71 settings-only legacy polling rollback, NOR scan redraw cadence, and follow-up documentation. `files/agent_prompt.txt` and `files/claude-audit.tar.gz` are user-provided; preserve them, and do not stage the archive without an explicit request.
+- **Worktree at review time:** source/audit changes cover S71 settings-only legacy polling rollback, NOR scan redraw cadence, and follow-up documentation. `files/agent_prompt.txt` was user-provided and is tracked. The Claude bundle is now preserved as a tracked compressed archive so it survives Codespace replacement.
 - **Constraints preserved:** all changes are hardware-revision agnostic and the built kernel remains <= 2 MiB. The displayed version was not changed to `v7.4.5c`; the proposed `-Os` default was not adopted. Splash/background compression remain declined and the diagnostics logger deferred.
 - **Validation:** the integrated tree builds to 2,066,232 bytes (30,920 bytes below the cap); all 11 host suites and the browser installer scenarios pass. Dead-code removal was independently confirmed to leave target code/data identical at `-O` and `-Os` after stripping debug metadata. No hardware test was performed and no candidate artifact was staged.
 

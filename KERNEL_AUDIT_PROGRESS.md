@@ -6,7 +6,7 @@
 - Updated local `origin` to the new URL and verified `git fetch origin --prune`; the active `copilot` branch and `v7.4.6b` tag resolve on the renamed repository. The upstream remote remains `FrankieT19/omega-de-ds-style-kernel`.
 - Renamed `CODEX_KERNEL_AUDIT_HANDOFF.md` to `KERNEL_AUDIT_HANDOFF.md` and `CODEX_KERNEL_AUDIT_PROGRESS.md` to `KERNEL_AUDIT_PROGRESS.md`; references were updated in audit instructions, supporting notes, and validation scripts.
 - The Codespaces workspace path remains `/workspaces/omega-de-ds-style-multisystem-kernel`; no working-tree source or firmware behavior changed for the repository rename.
-- Current release state: commit `4c7c5e8` is on `copilot`, and prerelease `v7.4.6b` is published at `https://github.com/voluptuary/ezfode-dssmm-kernel/releases/tag/v7.4.6b`.
+- Current release state: commit `4c7c5e8` is on `copilot`, and release `v7.4.6b` is published at `https://github.com/voluptuary/ezfode-dssmm-kernel/releases/tag/v7.4.6b`.
 
 ## 2026-11-01 — Workspace storage cleanup
 
@@ -17,10 +17,11 @@
 - **Validation:** after cleanup, `make -B` rebuilt successfully with devkitARM 16.1.0 at 2,066,272 bytes (30,880 bytes below 2 MiB). `make clean` then removed all build outputs again. `git diff --check` passes.
 - This is a workspace cleanup only; no source behavior changed. Its cleanup changes were committed as `090ecd2`; the Claude archive was intentionally left untracked.
 - The existing Claude bundle compressed from 1,054,720 bytes to 337,630 bytes (about 68% smaller). `tar -df` confirmed every archived member matches the unpacked tree before removal; archive extraction recreates `files/claude/`. Archive SHA-256: `3f0ca3e0df8433241a01005a432258fcc04519a68770aeee6157e60879cbc0c6`.
+- **Restart preparation:** user plans to close this Codespace and continue from the renamed repository. The audit handoff identifies `copilot` as the continuation branch (not default `main`), the Claude archive has been added to the branch so it survives a fresh Codespace, and the v7.4.6b binary can be restored from its published prerelease. Build outputs remain cleaned.
 
 ## 2026-11-01 — Claude patch bundle review completed
 
-- **Scope and preserved state:** reviewed the README, Claude handoff/progress files, and all 17 patches. The working tree's prior S71 settings rollback, 8 MiB redraw cadence, and audit changes remain intact. User-provided `files/agent_prompt.txt` and `files/claude/` were not modified or staged. The version label remains unchanged; no candidate was created and no commit/push or hardware test was performed.
+- **Scope and preserved state at review time:** reviewed the README, Claude handoff/progress files, and all 17 patches. The working tree's prior S71 settings rollback, 8 MiB redraw cadence, and audit changes remain intact. `files/agent_prompt.txt` was user-provided. The original bundle under `files/claude/` was compressed after review; its archive is now tracked for restart continuity. The version label remains unchanged; no hardware test was performed.
 - **Patch dispositions:**
 
 | Patch | Decision | Reason |

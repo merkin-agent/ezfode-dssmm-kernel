@@ -1,6 +1,6 @@
 #ifndef LAUNCHER_VERSION_H
 #define LAUNCHER_VERSION_H
 
-#define LAUNCHER_VERSION_TEXT "8.1.0"
+#define LAUNCHER_VERSION_TEXT "8.1.1"
 
 #endif

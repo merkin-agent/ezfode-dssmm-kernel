@@ -1,25 +1,32 @@
 # Changelog
 
-## DS Style Merkin Mix 8.1.0
+## DS Style Merkin Mix 8.1.1
 
-This build includes the v8.0.0 fixes and follow-up improvements.
+This build incorporates upstream v7.5 changes while retaining the fork's audited fixes.
 
-### New features since v8.0.0
+### New features since v8.1.0
 
-- No new features this time, just fixes and optimizations.
+- Added smooth carousel animations, enabled by default, with small or equal-size side previews and an option to turn animations off.
+- Added a selection pulse before directly launching from an animated carousel.
+- Completed square artwork borders in animated carousel views.
+- Refreshed the startup screen and emulated-system icons, contributed by Merkin.
 
-### New fixes since v8.0.0
+### New fixes since v8.1.0
 
-- Optimized the CPU-copy / DMA-copy transparency check for artwork rows. Aligned pixel pairs are scanned in batches to quickly select DMA copying for opaque rows, while CPU copying still skips transparent pixels exactly as before. The patch's proposed fallback would have scanned transparent rows a second time; this build instead checks candidate pixel pairs as it finds them, avoiding that extra pass while retaining exact `0x8000` transparency handling. Hardware testing found menu responsiveness about the same as the previous build, with a possible marginal improvement. Please report your findings in the [GBAtemp DS Style thread](https://gbatemp.net/threads/ds-style-a-nintendo-ds-inspired-custom-kernel-for-ez-flash-omega-omega-de.680565/).
+- Added defensive save and real-time-save file checks so incomplete SD-card reads or writes are reported instead of being treated as successful.
+- Improved SD-card error handling, cheat-file bounds checking, and filename/path validation.
+- Preserved marked transparent artwork while rendering animated carousel frames.
+- Added support for upstream's `Wrap list` setting while continuing to read the fork's existing `Wrap around` setting.
 
-### Features added through v8.0.0
+### Features added through v8.1.0
 
+- **v8.1.0:** Optimized the CPU-copy / DMA-copy transparency check for artwork rows. Aligned pixel pairs are scanned in batches to quickly select DMA copying for opaque rows, while CPU copying still skips transparent pixels exactly as before. The patch's proposed fallback would have scanned transparent rows a second time; this build instead checks candidate pixel pairs as it finds them, avoiding that extra pass while retaining exact `0x8000` transparency handling. Hardware testing found menu responsiveness about the same as the previous build, with a possible marginal improvement.
 - **v8.0.0:** Renamed the About-screen branding to DS Style Merkin Mix and displayed the build number.
 - **v7.4.6b:** No new user-facing features; this build focused on fixes and optimizations.
 - **v7.4.5:** Added an optional Wrap around setting for browser navigation.
 - **v7.4.3:** Added SD-card mirrored artwork lookup with custom and built-in thumbnail fallbacks, selective transparency for marked BMP thumbnails, and refreshed console icons and startup artwork.
 
-### Fixes through v8.0.0
+### Fixes through v8.1.0
 
 - **v8.0.0:** Prevented highly fragmented ROM and RTS files from overflowing the fixed FPGA FAT-table transfer buffer. Files whose fragment tables exceed the supported capacity are rejected instead of sending a corrupted table. The fix passed host regression tests; physical testing with a highly fragmented SD card has not been reported.
 - **v7.4.6b:** Kept the kernel image within the supported 2 MiB limit, with oversized builds failing reliably instead of leaving a stale image that could appear successful. Improved save handling so failed first-time saves do not leave incomplete files and errors checking existing saves are not mistaken for missing saves.

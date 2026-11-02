@@ -1,5 +1,16 @@
 # DS Style Kernel Audit Progress
 
+## 2026-11-02 — Upstream v7.5 integration and v8.1.1 hardware candidate
+
+- **Upstream review:** integrated `FrankieT19/omega-de-ds-style-kernel:main` at `df346b5` (tag `v7.5`), whose merge base with this fork was `3b7280c`. This imports animated carousel motion and settings, the launch pulse, square border support, refreshed splash/icons, defensive save/RTS and cheat/path checks, manager/docs updates, and v7.5 bundled styles.
+- **Fork-specific merge preservation:** kept the tested navigation helpers and long-filename identity/path behavior; retained candid failed-save semantics and save-error propagation; retained audit-specific bounds checks. `Wrap list` is now the canonical settings-file key, with `Wrap around` still accepted on read for existing fork users.
+- **Animation compatibility fix:** the new compositor now recognizes marked thumbnail `0x8000` transparent pixels, skips them during motion-frame blits, and restores the underlying background for images containing transparency. Without this, animated views could display sentinel values or stale pixels. Linker section boundaries are converted through `uintptr_t` before calculating copied code size.
+- **Version and notes:** set About branding to `DS Style Merkin Mix 8.1.1`. Updated release notes in the established style: new changes since v8.1.0 and cumulative features/fixes through v8.1.0, including the v8.1.0 artwork-row optimization and v7.5 changes.
+- **Build candidate:** `files/candidate/8.1.1/ezkernelnew.bin`, 2,061,832 bytes (35,320 bytes below 2 MiB), SHA-256 `10a8d89f97e382368f4c0fdde28d43d4903f6cbf03801eaef97890a1db96b627`. The binary contains the exact About string. No hardware test or GitHub release has been performed.
+- **Validation:** production target build passed; FAT-table capacity, artwork drawing (766,800 span cases; 0 mismatches), browser installer, JS syntax, whitespace, all 12 firmware host suites, and Cppcheck passed.
+- **Audit items not closed by this integration:** F-036 still documents loss of an old save when a `FA_CREATE_ALWAYS` overwrite fails; F-011 still tracks unchecked settings-file serialization/close outcomes; F-032 lacks a hardware-agnostic NOR catalog recovery layout; F-022 lacks authoritative supported-device/timing bounds. The forum Mario & Luigi save-mode report remains unconfirmed.
+- **Branch cleanup:** deleted the local `copilot` ref (its tip was an ancestor of `main`) and obsolete local v7.4.4/v7.4.5 branch names. Historical commits remain reachable through the v7.4.4/v7.4.5 tags. After pushing the integration, delete `origin/copilot` only if a fresh fetch confirms no unique commits. Keep all upstream refs untouched.
+
 ## 2026-11-01 — Codespace restart readiness and branch synchronization
 
 - **Branch state:** `main` and `copilot` were synchronized at `dc8038a61a9b9d94017f7fa3085d0e71538749b6`. Both local branches and both `origin` refs resolve to that commit. Worktree was clean before this documentation update.

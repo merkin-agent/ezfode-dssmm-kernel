@@ -1,16 +1,27 @@
 # DS Style Kernel Audit — Standalone Handoff
 
-## Current repository identity (2026-11-01)
+## Current continuation — upstream v7.5 integration and v8.1.1 candidate (2026-11-02)
+
+- Upstream `FrankieT19/omega-de-ds-style-kernel:main` was reviewed at `df346b5` (`v7.5`); the common merge base was `3b7280c`. Its carousel animation/settings, selection pulse, artwork/icons, save/RTS/cheat/path checks, manager assets, docs, and v7.5 style packages are integrated into this fork.
+- The candidate About label is exactly `DS Style Merkin Mix 8.1.1` (`source/launcher_version.h`). No GitHub release has been published; the hardware-test candidate is `files/candidate/8.1.1/ezkernelnew.bin`.
+- The target build is 2,061,832 bytes (35,320 bytes below the 2 MiB limit), SHA-256 `10a8d89f97e382368f4c0fdde28d43d4903f6cbf03801eaef97890a1db96b627`. The candidate bytes were copied from the verified `.gba` build and the exact About string was confirmed in the binary. Hardware testing is pending.
+- Merge decisions preserve this fork's long-filename identity/path handling, tested wrap-navigation helpers, save-error reporting and incomplete-save cleanup behavior, and audit changes. The upstream `Wrap list` key is read and written while the prior `Wrap around` key remains supported. The animation compositor was adapted to detect the fork's `0x8000` thumbnail transparency sentinel, skip those pixels, and restore the background beneath transparent artwork.
+- Validation completed: production build and 2 MiB guard, FAT-table and artwork drawing regressions, browser installer scenarios, JavaScript syntax, whitespace, all 12 firmware host suites, and Cppcheck.
+- Existing audit watch items remain open where evidence is incomplete: F-036 failed overwrite can destroy an existing SD save; F-011 `/SYSTEM/SETTINGS.TXT` serialization/close failures; F-032 NOR catalog recovery; F-022 supported NOR IDs/timing bounds. The GBAtemp Mario & Luigi save-mode report remains unreproduced.
+- The build environment is devkitARM 16.1.0 at `/opt/devkitpro/devkitARM`, with Make, Node, Cppcheck, and GBA rules available. Continue using `scripts/rebuild-and-verify-audit.sh`; it does not clean or stage artifacts. The standalone user-provided patch `files/0018-Screen-artwork-rows-for-the-transparent-sentinel-two.patch` remains untouched.
+- Local branch cleanup is complete: removed `copilot` (an ancestor of `main`) and the obsolete v7.4.4/v7.4.5 release branch names; their exact snapshots remain reachable through existing tags. After pushing the merge, remove `origin/copilot` if it still has no unique commits. Keep `main`, all historical tags, and every upstream ref.
+
+## Repository identity (2026-11-01)
 
 - The GitHub repository is now `voluptuary/ezfode-dssmm-kernel` at `https://github.com/voluptuary/ezfode-dssmm-kernel`.
 - The local Codespaces workspace directory remains `/workspaces/omega-de-ds-style-multisystem-kernel`; only the GitHub repository name changed.
-- `origin` points to the renamed repository and fetch was verified. The active `copilot` branch and `v7.4.6b` tag are present there.
+- `origin` points to the renamed repository and fetch was verified. The historical `copilot` continuation and `v7.4.6b` tag are described in the dated checkpoint below.
 - This handoff is now `KERNEL_AUDIT_HANDOFF.md`; the companion progress ledger is `KERNEL_AUDIT_PROGRESS.md`.
 - The v7.4.6b release commit is `4c7c5e8` (`Prepare DS Style v7.4.6b test release`); its asset and notes are published at `https://github.com/voluptuary/ezfode-dssmm-kernel/releases/tag/v7.4.6b`.
 - The original continuation branch was `copilot`; the later branch synchronization below supersedes the earlier instruction to switch to it.
 - The fully pushed restart handoff is commit `230458f91ee93221c2a6796f48e51fac85c37b17` on `origin/copilot`.
 
-## Restart state after branch synchronization (2026-11-01)
+## Restart state at branch synchronization (2026-11-01)
 
 - `main` and `copilot` were synchronized at commit `dc8038a61a9b9d94017f7fa3085d0e71538749b6` (`Merge branch 'copilot'`). Both `origin/main` and `origin/copilot` point there; the local `main` and `copilot` branches were also aligned.
 - The worktree was clean after synchronization. The handoff, progress ledger, and `files/agent_prompt.txt` are tracked in Git, so they survive Codespace deletion. A new Codespace may open on default branch `main`; no branch switch is needed. Fetch and confirm the two remote branch refs still match before continuing.

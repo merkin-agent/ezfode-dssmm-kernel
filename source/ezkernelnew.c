@@ -6676,6 +6676,62 @@ static void Launcher_ClearListBodyBackground(void)
 	Launcher_ClearWithThemeBG((const u16*)gImage_SD_LIST, 0, 19, 240, 160 - 19);
 }
 
+/* Most BGR555 pixels have bit 15 clear. Screen aligned spans in pairs of pixels, checking
+   candidate pairs exactly as they are found so transparent rows do not need a second scan. */
+typedef u32 __attribute__((may_alias)) Launcher_PixelPair;
+
+static int Launcher_SpanHasTransparent(const u16 *span, int count)
+{
+	const u16 *p = span;
+	const u16 *end;
+
+	if(!span || count <= 0)
+		return 0;
+	end = span + count;
+	if((unsigned long)p & 2u)
+	{
+		if(*p++ == LAUNCHER_THUMB_TRANSPARENT_SENTINEL)
+			return 1;
+	}
+	for(; end - p >= 8; p += 8)
+	{
+		const Launcher_PixelPair *pairs = (const Launcher_PixelPair*)p;
+		u32 pair0 = pairs[0];
+		u32 pair1 = pairs[1];
+		u32 pair2 = pairs[2];
+		u32 pair3 = pairs[3];
+
+		if((pair0 | pair1 | pair2 | pair3) & 0x80008000u)
+		{
+			if((pair0 & 0x80008000u) &&
+				(p[0] == LAUNCHER_THUMB_TRANSPARENT_SENTINEL ||
+				 p[1] == LAUNCHER_THUMB_TRANSPARENT_SENTINEL))
+				return 1;
+			if((pair1 & 0x80008000u) &&
+				(p[2] == LAUNCHER_THUMB_TRANSPARENT_SENTINEL ||
+				 p[3] == LAUNCHER_THUMB_TRANSPARENT_SENTINEL))
+				return 1;
+			if((pair2 & 0x80008000u) &&
+				(p[4] == LAUNCHER_THUMB_TRANSPARENT_SENTINEL ||
+				 p[5] == LAUNCHER_THUMB_TRANSPARENT_SENTINEL))
+				return 1;
+			if((pair3 & 0x80008000u) &&
+				(p[6] == LAUNCHER_THUMB_TRANSPARENT_SENTINEL ||
+				 p[7] == LAUNCHER_THUMB_TRANSPARENT_SENTINEL))
+				return 1;
+		}
+	}
+	for(; end - p >= 2; p += 2)
+	{
+		u32 pair = *(const Launcher_PixelPair*)p;
+		if((pair & 0x80008000u) &&
+			(p[0] == LAUNCHER_THUMB_TRANSPARENT_SENTINEL ||
+			 p[1] == LAUNCHER_THUMB_TRANSPARENT_SENTINEL))
+			return 1;
+	}
+	return p < end && *p == LAUNCHER_THUMB_TRANSPARENT_SENTINEL;
+}
+
 static void Launcher_DrawPicClipStride(const u16 *src, int src_stride, int x, int y, int w, int h)
 {
 	int src_x = 0;
@@ -6710,18 +6766,11 @@ static void Launcher_DrawPicClipStride(const u16 *src, int src_stride, int x, in
 		const u16 *src_row = src + ((src_y + row) * src_stride) + src_x;
 		vu16 *dst_row = dst_base + ((y + row) * 240) + x;
 		int col;
-		u32 has_transparent_pixels = 0;
+		u32 has_transparent_pixels;
 
 		/* Keep the fast DMA path for ordinary art. Only marked thumbnails
 		   contain the 0x8000 transparent sentinel after loading. */
-		for(col = 0; col < draw_w; col++)
-		{
-			if(src_row[col] == LAUNCHER_THUMB_TRANSPARENT_SENTINEL)
-			{
-				has_transparent_pixels = 1;
-				break;
-			}
-		}
+		has_transparent_pixels = Launcher_SpanHasTransparent(src_row, draw_w);
 		if(!has_transparent_pixels)
 		{
 			dmaCopy((void*)src_row, (void*)dst_row, draw_w * 2);
@@ -6838,17 +6887,10 @@ static void Launcher_DrawPreparedThumbMasked(const u16 *src, int src_stride, int
 			const u16 *src_row = src + row * src_stride + start_x;
 			vu16 *dst_row = dst_base + screen_y * 240 + x + start_x;
 			int col;
-			u32 has_transparent_pixels = 0;
+			u32 has_transparent_pixels;
 			int span = end_x - start_x;
 
-			for(col = 0; col < span; col++)
-			{
-				if(src_row[col] == LAUNCHER_THUMB_TRANSPARENT_SENTINEL)
-				{
-					has_transparent_pixels = 1;
-					break;
-				}
-			}
+			has_transparent_pixels = Launcher_SpanHasTransparent(src_row, span);
 			if(!has_transparent_pixels)
 			{
 				dmaCopy((void*)src_row, (void*)dst_row, span * 2);

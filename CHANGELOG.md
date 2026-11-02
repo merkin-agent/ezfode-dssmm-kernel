@@ -1,27 +1,27 @@
 # Changelog
 
-## DS Style Merkin Mix 8.0.0
+## DS Style Merkin Mix 8.1.0
 
-This build includes the v7.4.6b fixes and follow-up improvements.
+This build includes the v8.0.0 fixes and follow-up improvements.
 
-### New features since v7.4.6b
+### New features since v8.0.0
 
-- No features this time, just fixes and optimizations.
+- No new features this time, just fixes and optimizations.
 
-### New fixes since v7.4.6b
+### New fixes since v8.0.0
 
-- Prevented highly fragmented ROM and RTS files from overflowing the fixed FPGA FAT-table transfer buffer. Files whose fragment tables exceed the supported capacity are rejected instead of sending a corrupted table.
-- This fragmented-card fix passed the host regression suite but has not been tested with a physical cartridge and highly fragmented SD card. Please report any issues.
-- Updated the Help > About screen to show the DS Style Merkin Mix name and build number.
+- Reduced the work needed to check artwork rows for transparent pixels by scanning aligned pixel pairs in batches while preserving the existing image output. Hardware testing found menu performance about the same as the previous build, with a possible marginal improvement. Please report your responsiveness findings in the [GBAtemp DS Style thread](https://gbatemp.net/threads/ds-style-a-nintendo-ds-inspired-custom-kernel-for-ez-flash-omega-omega-de.680565/).
 
-### Features added through v7.4.6b
+### Features added through v8.0.0
 
+- **v8.0.0:** Renamed the About-screen branding to DS Style Merkin Mix and displayed the build number.
 - **v7.4.6b:** No new user-facing features; this build focused on fixes and optimizations.
 - **v7.4.5:** Added an optional Wrap around setting for browser navigation.
 - **v7.4.3:** Added SD-card mirrored artwork lookup with custom and built-in thumbnail fallbacks, selective transparency for marked BMP thumbnails, and refreshed console icons and startup artwork.
 
-### Fixes through v7.4.6b
+### Fixes through v8.0.0
 
+- **v8.0.0:** Prevented highly fragmented ROM and RTS files from overflowing the fixed FPGA FAT-table transfer buffer. Files whose fragment tables exceed the supported capacity are rejected instead of sending a corrupted table. The fix passed host regression tests; physical testing with a highly fragmented SD card has not been reported.
 - **v7.4.6b:** Kept the kernel image within the supported 2 MiB limit, with oversized builds failing reliably instead of leaving a stale image that could appear successful. Improved save handling so failed first-time saves do not leave incomplete files and errors checking existing saves are not mistaken for missing saves.
 - **v7.4.6b:** Improved cartridge-flash operation checks and feedback, refreshed the game list after successful formatting, avoided unnecessary cartridge-info writes, reduced NOR format progress redraw overhead while retaining full erase verification, and fixed format confirmation/progress redraws to clear the full menu row.
 - **v7.4.6b:** Fixed cheat-file parsing so values from one entry cannot carry over into the next. This feature has not been hardware-tested; please report any issues.

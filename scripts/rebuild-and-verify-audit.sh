@@ -66,6 +66,9 @@ make
 printf '\nRunning FAT-table capacity regression test...\n'
 scripts/test-fat-table-builder-host.sh
 
+printf '\nRunning launcher artwork drawing regression test...\n'
+scripts/test-launcher-artwork-draw-host.sh
+
 printf '\nRunning browser installer regression scenarios...\n'
 node tests/browser-installer.mjs
 

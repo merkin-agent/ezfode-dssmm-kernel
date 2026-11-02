@@ -1989,9 +1989,9 @@ Entries below record what was known at each stage. Do not use older branch hashe
 - Validation passed: the differential test reports identical output and 2,650,289 DMA row copies; helper fuzz reports zero mismatches; all 13 host suites passed; the full audit build/browser/JS/whitespace/Cppcheck script passed. ARM disassembly confirms aligned word loads in the grouped scan.
 - Hardware-test build: `files/candidate/8.0.0-transparent-draw-test/ezkernelnew.bin`, 2,066,480 bytes (30,672 bytes below the 2 MiB limit), SHA-256 `cbc4c13dca76560c6db2523a5ff2c24a2054d7e69d61a2a627cd7b0175651e92`. The owner subsequently tested the optimized build on hardware and reports performance about the same as the prior build, with a possible marginal improvement; no measured benchmark is claimed.
 
-## 2026-11-02 — DS Style Merkin Mix 8.1.0
+## 2026-11-02 — Published DS Style Merkin Mix 8.1.0
 
 - Bumped the About-screen build label to `DS Style Merkin Mix 8.1.0`.
 - Updated the cumulative release notes through v8.0.0, including the newly hardware-tested artwork row-scan optimization. The notes ask users to report responsiveness in the [GBAtemp DS Style thread](https://gbatemp.net/threads/ds-style-a-nintendo-ds-inspired-custom-kernel-for-ez-flash-omega-omega-de.680565/).
-- Build candidate: `files/candidate/8.1.0/ezkernelnew.bin`, 2,066,480 bytes, SHA-256 `a43002724fca4792f21865e2c61eb02e4184d14809efad915dfcd90a8fc93541`; About string verified. It is 30,672 bytes under the 2 MiB limit.
+- Published stable [v8.1.0](https://github.com/voluptuary/ezfode-dssmm-kernel/releases/tag/v8.1.0) from commit `8bbd5545240fe3d2176f5e63f30a889e0c5d9238`, with annotated tag `v8.1.0`. Asset `files/candidate/8.1.0/ezkernelnew.bin` is 2,066,480 bytes, SHA-256 `a43002724fca4792f21865e2c61eb02e4184d14809efad915dfcd90a8fc93541`; the downloaded release asset was byte-identical. GitHub reports the release as non-draft, non-prerelease, and latest.
 - The build, complete audit script, all 13 host suites, browser installer scenarios, JS syntax, whitespace, and targeted Cppcheck passed. Differential drawing tests matched the prior implementation; helper fuzz had zero mismatches. Owner hardware testing reports comparable performance with a possible marginal improvement; invite broader user feedback, not as a guarantee of measurable acceleration.

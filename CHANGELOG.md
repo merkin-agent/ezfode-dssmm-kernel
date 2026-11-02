@@ -10,7 +10,7 @@ This build includes the v8.0.0 fixes and follow-up improvements.
 
 ### New fixes since v8.0.0
 
-- Reduced the work needed to check artwork rows for transparent pixels by scanning aligned pixel pairs in batches while preserving the existing image output. Hardware testing found menu performance about the same as the previous build, with a possible marginal improvement. Please report your responsiveness findings in the [GBAtemp DS Style thread](https://gbatemp.net/threads/ds-style-a-nintendo-ds-inspired-custom-kernel-for-ez-flash-omega-omega-de.680565/).
+- Optimized the CPU-copy / DMA-copy transparency check for artwork rows. Aligned pixel pairs are scanned in batches to quickly select DMA copying for opaque rows, while CPU copying still skips transparent pixels exactly as before. The patch's proposed fallback would have scanned transparent rows a second time; this build instead checks candidate pixel pairs as it finds them, avoiding that extra pass while retaining exact `0x8000` transparency handling. Hardware testing found menu responsiveness about the same as the previous build, with a possible marginal improvement. Please report your findings in the [GBAtemp DS Style thread](https://gbatemp.net/threads/ds-style-a-nintendo-ds-inspired-custom-kernel-for-ez-flash-omega-omega-de.680565/).
 
 ### Features added through v8.0.0
 

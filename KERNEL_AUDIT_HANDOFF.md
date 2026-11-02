@@ -9,8 +9,8 @@
 - Validation completed: production build and 2 MiB guard, FAT-table and artwork drawing regressions, browser installer scenarios, JavaScript syntax, whitespace, all 12 firmware host suites, and Cppcheck.
 - The integration is committed and pushed to `origin/main` as `1549ef2f4a107d37ef1e513da3125880cfe1d0b1`. No release/tag was created. Cleanup left local `main` and `origin/main` as the only fork branches; obsolete `copilot` refs were deleted, the v7.4.4/v7.4.5 release tags were preserved, and all `upstream/*` refs were left unchanged.
 - Existing audit watch items remain open where evidence is incomplete: F-036 failed overwrite can destroy an existing SD save; F-011 `/SYSTEM/SETTINGS.TXT` serialization/close failures; F-032 NOR catalog recovery; F-022 supported NOR IDs/timing bounds. The GBAtemp Mario & Luigi save-mode report remains unreproduced.
-- The build environment is devkitARM 16.1.0 at `/opt/devkitpro/devkitARM`, with Make, Node, Cppcheck, and GBA rules available. Continue using `scripts/rebuild-and-verify-audit.sh`; it does not clean or stage artifacts. The standalone user-provided patch `files/0018-Screen-artwork-rows-for-the-transparent-sentinel-two.patch` remains untouched.
-- The candidate binary and root build outputs are ignored local artifacts; the staged candidate is ready for hardware testing in this Codespace. The only remaining untracked file is the user-provided standalone patch named above.
+- The build environment is devkitARM 16.1.0 at `/opt/devkitpro/devkitARM`, with Make, Node, Cppcheck, and GBA rules available. Continue using `scripts/rebuild-and-verify-audit.sh`; it does not clean or stage artifacts. Patch 0018 is retained in `files/claude-audit.tar.gz` at `claude/patches/0018-Screen-artwork-rows-for-the-transparent-sentinel-two.patch`; the duplicate standalone copy has been removed.
+- The candidate binary and root build outputs are ignored local artifacts; the staged candidate is ready for hardware testing in this Codespace. After removing the duplicate patch, no untracked source/document files are expected.
 
 ## Repository identity (2026-11-01)
 
@@ -952,7 +952,7 @@ The release was created and subsequently corrected to use the cartridge-required
 
 ## 2026-11-02 — Transparent-artwork row-scan optimization and v8.1.0 release
 
-- Reviewed the user-provided `files/0018-Screen-artwork-rows-for-the-transparent-sentinel-two.patch` against the current v8.0.0 source. The finding is valid: both row-drawing paths first compare pixels individually to detect transparency before deciding between DMA and masked copying. This exact scan is performed even for opaque artwork.
+- Reviewed patch 0018 (now preserved in `files/claude-audit.tar.gz` under `claude/patches/`) against the current v8.0.0 source. The finding is valid: both row-drawing paths first compare pixels individually to detect transparency before deciding between DMA and masked copying. This exact scan is performed even for opaque artwork.
 - Applied the optimization with a correctness adjustment: scan aligned pairs using 32-bit loads, screen batches for bit-15 candidates, and compare only candidate pairs exactly as they are found. This preserves the exact `0x8000` sentinel rule (including non-sentinel values with bit 15 set) while avoiding the patch's second full-row scan whenever transparency exists. Unaligned leading pixels and odd tails use 16-bit reads; nonpositive/null spans return safely. No state or call-site behavior was added.
 - Added `scripts/test-launcher-artwork-draw-host.sh` and `tests/launcher-artwork-draw-host.c`, and wired the regression into `scripts/rebuild-and-verify-audit.sh`. The harness compares both drawing routines against reference `83e350d`, checks framebuffer hashes and DMA-copy counts over 120,000 scenarios, fuzzes the helper against an exact pixel scan over 766,800 cases, and uses alignment sanitization to catch unsafe wide loads.
 - Validation passed: the differential test reports identical output and 2,650,289 DMA row copies; helper fuzz reports zero mismatches; all 13 host suites passed; the full audit build/browser/JS/whitespace/Cppcheck script passed. ARM disassembly confirms aligned word loads in the grouped scan.
@@ -961,7 +961,7 @@ The release was created and subsequently corrected to use the cartridge-required
 
 ## 2026-11-02 — Claude audit archive extended with final patch
 
-- Added the user's `files/0018-Screen-artwork-rows-for-the-transparent-sentinel-two.patch` to `claude/patches/` inside `files/claude-audit.tar.gz` as the final supplemental patch. Verified all 18 archived patches apply in order to the declared base `83e350d`.
+- Added the user's patch 0018 to `claude/patches/` inside `files/claude-audit.tar.gz` as the final supplemental patch. Verified all 18 archived patches apply in order to the declared base `83e350d`.
 - Updated the archive README, progress ledger, and handoff to record that patch 0018 is the original proposal, while v8.1.0 contains the adapted single-pass candidate-check implementation; the owner hardware-tested that integrated build and reports similar responsiveness with a possible marginal improvement.
-- Preserved all other existing archive files byte-for-byte. Current archive size is 344,979 bytes; SHA-256 `118d8e4875e6b7434bdb50bdda9c25b7fb54895cdc88418183c8e68c62a98e1c`. Patch 0018 SHA-256 is `d817ecaff96bf042323d5aaa26121764e9c6de62ce1034d39556cfe2feb3d95c`.
-- The standalone patch in `files/` remains unchanged; archive contents and the integrated v8.1.0 implementation are distinguished in the README and audit records.
+- Preserved all other existing archive files byte-for-byte. Current archive size is 344,979 bytes; SHA-256 `118d8e4875e6b7434bdb50bdda9c25b7fb54895cdc88418183c8e68c62a98e1c`. Archived patch 0018 SHA-256 is `d817ecaff96bf042323d5aaa26121764e9c6de62ce1034d39556cfe2feb3d95c`.
+- Removed the duplicate standalone copy from the repository root `files/` directory; the archived original and integrated v8.1.0 implementation remain distinguished in the README and audit records.

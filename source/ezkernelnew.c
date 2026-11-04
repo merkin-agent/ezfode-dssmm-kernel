@@ -640,6 +640,7 @@ u16 gl_reset_on;
 u16 gl_rts_on;
 u16 gl_sleep_on;
 u16 gl_cheat_on;
+u16 gl_cheat_remember;
 
 
 u16 gl_auto_save_sel;
@@ -727,6 +728,11 @@ static u16 Launcher_MotionTakeInput(void);
 static u16 launcher_clock_24_hour = 1;
 static u16 launcher_art_border_mode = 0;
 static u16 launcher_art_rounded_corners = 0;
+static u16 launcher_legacy_custom_art_only = 0;
+static u16 launcher_carousel_art_custom = 0;
+static u16 launcher_list_art_custom = 0;
+static inline __attribute__((always_inline)) u32 Launcher_RoundedCornersForCustom(u32 custom_thumbnail);
+static inline __attribute__((always_inline)) u32 Launcher_ArtBorderEnabled(void);
 static u16 launcher_vertical_side_align = 0;
 static u16 launcher_horizontal_side_align = 0;
 static u16 launcher_list_art_position = LAUNCHER_SIDE_ALIGN_BOTTOM;
@@ -774,7 +780,10 @@ typedef union
 	u16 list_art[LAUNCHER_LIST_ART_CACHE_COUNT][90 * 60];
 } LauncherThumbnailRenderWorkspace;
 
-static LauncherThumbnailRenderWorkspace launcher_thumbnail_workspace EWRAM_BSS;
+/* Carousel motion stores 32-bit pointers in this shared workspace. */
+static LauncherThumbnailRenderWorkspace launcher_thumbnail_workspace EWRAM_BSS __attribute__((aligned(4)));
+typedef char LauncherThumbnailWorkspaceWordAligned[
+	(__alignof__(launcher_thumbnail_workspace) >= 4) ? 1 : -1];
 static u8 launcher_thumbnail_workspace_mode = 0xFF;
 #define launcher_side_preview_left launcher_thumbnail_workspace.horizontal.left
 #define launcher_side_preview_right launcher_thumbnail_workspace.horizontal.right
@@ -804,6 +813,7 @@ static u32 launcher_list_art_scaled_index[LAUNCHER_LIST_ART_CACHE_COUNT] = {
 };
 static u8 launcher_list_art_scaled_valid[LAUNCHER_LIST_ART_CACHE_COUNT] = {0, 0, 0};
 static u8 launcher_list_art_scaled_has_art[LAUNCHER_LIST_ART_CACHE_COUNT] = {0, 0, 0};
+static u8 launcher_list_art_scaled_custom[LAUNCHER_LIST_ART_CACHE_COUNT] = {0, 0, 0};
 static u8 launcher_list_art_scaled_sig_w[LAUNCHER_LIST_ART_CACHE_COUNT] = {0, 0, 0};
 static u8 launcher_list_art_scaled_sig_h[LAUNCHER_LIST_ART_CACHE_COUNT] = {0, 0, 0};
 static u8 launcher_list_art_scaled_sig_style[LAUNCHER_LIST_ART_CACHE_COUNT] = {0, 0, 0};
@@ -1235,7 +1245,8 @@ static u32 Launcher_CheatTitleMaxChars(void)
 	return (launcher_cheat_counter_x - 4) / 6;
 }
 
-static void Launcher_RestorePopupRegionForPage(u32 page_num, u32 top_art_has_thumbnail)
+static void Launcher_RestorePopupRegionForPage(u32 page_num, u32 top_art_has_thumbnail,
+	u32 top_art_is_custom)
 {
 	const u16 *bg;
 	u16 old_carousel_art_draw;
@@ -1249,7 +1260,7 @@ static void Launcher_RestorePopupRegionForPage(u32 page_num, u32 top_art_has_thu
 
 	Launcher_ClearWithThemeBG(bg, 36, 25, 168, 110);
 	if(launcher_popup_restore_redraw && launcher_effective_show_thumbnail == LAUNCHER_VIEW_VERTICAL &&
-	launcher_art_border_mode && top_art_has_thumbnail)
+	Launcher_ArtBorderEnabled() && top_art_has_thumbnail)
 	{
 		int border_x = Launcher_VerticalSideX(LAUNCHER_VERT_PREV_X, LAUNCHER_VERT_PREV_W);
 		int border_w = LAUNCHER_VERT_PREV_W;
@@ -1259,10 +1270,11 @@ static void Launcher_RestorePopupRegionForPage(u32 page_num, u32 top_art_has_thu
 			border_w = 32;
 		}
 		old_carousel_art_draw = launcher_carousel_art_draw;
+		launcher_carousel_art_custom = (u16)top_art_is_custom;
 		launcher_carousel_art_draw = 1;
-		Launcher_DrawThumbBorderEx(border_x, LAUNCHER_VERT_PREV_Y, border_w,
-		LAUNCHER_VERT_PREV_H, 0);
+		Launcher_DrawThumbBorderEx(border_x, LAUNCHER_VERT_PREV_Y, border_w, LAUNCHER_VERT_PREV_H, 0);
 		launcher_carousel_art_draw = old_carousel_art_draw;
+		launcher_carousel_art_custom = 0;
 	}
 }
 
@@ -2085,7 +2097,7 @@ static u32 Launcher_ListArtProtectedSpansAtYRaw(int screen_y, LauncherListArtSpa
 		Launcher_ListArtAddSpan(spans, &count, max_spans, x + start, x + end);
 	}
 
-	if(!launcher_art_border_mode)
+	if(!Launcher_ArtBorderEnabled())
 		return count;
 
 	if(!Launcher_RoundedCornersForCarousel())
@@ -2137,16 +2149,19 @@ static void Launcher_ListArtPrepareSpanCache(void)
 {
 	int x, y, w, h;
 	u32 rounded;
+	u32 border;
 	u32 row;
 
 	Launcher_GetListArtRect(&x, &y, &w, &h);
-	rounded = Launcher_RoundedCornersForCarousel();
+	launcher_carousel_art_custom = launcher_list_art_custom;
+	rounded = Launcher_RoundedCornersForCustom(launcher_carousel_art_custom);
+	border = Launcher_ArtBorderEnabled();
 	if(launcher_list_art_span_cache_valid &&
 	launcher_list_art_span_sig_x == (u8)x &&
 	launcher_list_art_span_sig_y == (u8)y &&
 	launcher_list_art_span_sig_w == (u8)w &&
 	launcher_list_art_span_sig_h == (u8)h &&
-	launcher_list_art_span_sig_border == (u8)launcher_art_border_mode &&
+	launcher_list_art_span_sig_border == (u8)border &&
 	launcher_list_art_span_sig_rounded == (u8)rounded)
 		return;
 
@@ -2168,7 +2183,7 @@ static void Launcher_ListArtPrepareSpanCache(void)
 	launcher_list_art_span_sig_y = (u8)y;
 	launcher_list_art_span_sig_w = (u8)w;
 	launcher_list_art_span_sig_h = (u8)h;
-	launcher_list_art_span_sig_border = (u8)launcher_art_border_mode;
+	launcher_list_art_span_sig_border = (u8)border;
 	launcher_list_art_span_sig_rounded = (u8)rounded;
 	launcher_list_art_span_cache_valid = 1;
 }
@@ -6429,8 +6444,10 @@ static u32 Launcher_LoadThumbnailFromRomHeaderPath(const char *rom_dir, const ch
    invalidates that cache, so a folder's artwork is never retained as the
    active artwork after leaving the folder. */
 static u32 Launcher_LoadThumbnailForPath(const char *filename, const char *rom_dir,
-	u8 *dst, const u8 *known_gamecode)
+	u8 *dst, const u8 *known_gamecode, u32 *custom_thumbnail)
 {
+	if(custom_thumbnail)
+		*custom_thumbnail = 0;
 	if(!filename || !filename[0] || !dst)
 		return 0;
 	if(Launcher_LoadMirroredThumbnail(rom_dir, filename, dst))
@@ -6438,7 +6455,11 @@ static u32 Launcher_LoadThumbnailForPath(const char *filename, const char *rom_d
 
 	Launcher_CustomThumbFileName(filename, launcher_custom_thumb_name, sizeof(launcher_custom_thumb_name));
 	if(Launcher_LoadCustomThumbnailByName(launcher_custom_thumb_name, dst))
+	{
+		if(custom_thumbnail)
+			*custom_thumbnail = 1;
 		return 1;
+	}
 
 	/* Header game codes are only meaningful for GBA ROMs.  Other console
 	   formats use their relative path and file name, never an arbitrary
@@ -6481,7 +6502,7 @@ u32 Load_ThumbnailEx(TCHAR *pfilename_pic, u8 *dst)
 		filename = rom_name;
 	else if(f_getcwd(rom_dir, sizeof(rom_dir) / sizeof(*rom_dir)) != FR_OK)
 		strcpy(rom_dir, "/");
-	return Launcher_LoadThumbnailForPath(filename, rom_dir, dst, 0);
+	return Launcher_LoadThumbnailForPath(filename, rom_dir, dst, 0, 0);
 }
 
 u32 Load_Thumbnail(TCHAR *pfilename_pic)
@@ -6629,6 +6650,7 @@ typedef struct
 	u32 valid;
 	u32 absolute_index;
 	u32 has_thumbnail;
+	u32 custom_thumbnail;
 	u8 *thumb_data;
 } LauncherThumbCache;
 
@@ -6952,6 +6974,11 @@ static u16 Launcher_ArtBorderColourEx(u32 selected)
 	}
 }
 
+static inline __attribute__((always_inline)) u32 Launcher_ArtBorderEnabled(void)
+{
+	return launcher_art_border_mode != 0;
+}
+
 static void Launcher_RestoreThumbCornerMaskRaw(const u16 *bg, int x, int y, int w, int h)
 {
 	Launcher_RestoreBGClip(bg, x, y, 5, 1);
@@ -6982,7 +7009,7 @@ static void Launcher_RestoreThumbCornerMask(int x, int y, int w, int h)
 static void Launcher_DrawThumbBorderEx(int x, int y, int w, int h, u32 selected)
 {
 	u16 colour;
-	if(!launcher_carousel_art_draw || !launcher_art_border_mode)
+	if(!launcher_carousel_art_draw || !Launcher_ArtBorderEnabled())
 		return;
 	colour = Launcher_ArtBorderColourEx(selected);
 	if(Launcher_RoundedCornersForCarousel())
@@ -7013,22 +7040,6 @@ static void Launcher_DrawThumbBorderEx(int x, int y, int w, int h, u32 selected)
 	Launcher_ClearClip(x - 1, y + h, w + 2, 1, colour);
 	Launcher_ClearClip(x - 1, y - 1, 1, h + 2, colour);
 	Launcher_ClearClip(x + w, y - 1, 1, h + 2, colour);
-}
-
-static void Launcher_DrawThumbBorder(int x, int y, int w, int h)
-{
-	Launcher_DrawThumbBorderEx(x, y, w, h, 1);
-}
-
-static void Launcher_FinishCarouselArtworkEx(int x, int y, int w, int h, u32 selected)
-{
-	Launcher_RestoreThumbCornerMask(x, y, w, h);
-	Launcher_DrawThumbBorderEx(x, y, w, h, selected);
-}
-
-static void Launcher_FinishCarouselArtwork(int x, int y, int w, int h)
-{
-	Launcher_FinishCarouselArtworkEx(x, y, w, h, 1);
 }
 
 static void Launcher_RestoreStartThumbCorners(int x, int y, int w, int h)
@@ -7068,8 +7079,8 @@ static void Launcher_DrawPreparedHorizontalArtwork(const u16 *src, int stride,
 	if(launcher_popup_restore_redraw)
 		Launcher_RestoreThumbCornerMask(x, y, w, h);
 
-	/* Keep the horizontal border resident while artwork changes. Drawing it
-	before a masked copy also preserves the rounded-corner border pixels. */
+	/* Keep the border resident while artwork changes. Drawing it before
+	a masked copy preserves the rounded-corner border pixels. */
 	Launcher_DrawThumbBorderEx(x, y, w, h, selected);
 	if(Launcher_RoundedCornersForCarousel())
 		Launcher_DrawPreparedThumbMasked(src, stride, x, y, w, h);
@@ -7284,7 +7295,8 @@ static void Launcher_DrawPreparedCarouselSideArtwork(const u16 *src, int stride,
 		return;
 	}
 	Launcher_DrawPicClipStride(src, stride, x, y, w, h);
-	Launcher_FinishCarouselArtworkEx(x, y, w, h, 0);
+	Launcher_RestoreThumbCornerMask(x, y, w, h);
+	Launcher_DrawThumbBorderEx(x, y, w, h, 0);
 }
 
 static void Launcher_DrawPreparedHorizontalSidePreview(u16 *src, int x, int y, int w, int h, u16 outline, u16 fill)
@@ -7308,7 +7320,7 @@ static void Launcher_DrawPreparedHorizontalSidePreview(u16 *src, int x, int y, i
 	/* Side previews are redrawn while scrolling. Restore their full image area
 	   before drawing transparency-aware artwork so margins cannot reveal the
 	   previous frame's pixels. The helper redraws the border after this restore. */
-	Launcher_RestoreBGClip((u16*)Launcher_GetBGImage(), draw_x, draw_y, draw_w, draw_h);
+	Launcher_RestoreBGClip((u16*)Launcher_GetBGImage(), draw_x - 1, draw_y - 1, draw_w + 2, draw_h + 2);
 	Launcher_DrawPreparedHorizontalArtwork(src, stride, draw_x, draw_y, draw_w, draw_h, 0);
 }
 
@@ -7348,14 +7360,15 @@ static void Launcher_DrawHorizontalSelectedPreview(const u16 *src, int src_w, in
 	   still be visible in VRAM. Restore the actual launcher background beneath
 	   the entire image footprint before transparent pixels are skipped. Keep the
 	   surrounding preview panel and its border intact. */
-	Launcher_RestoreBGClip((u16*)Launcher_GetBGImage(), draw_x, draw_y, draw_w, draw_h);
+	Launcher_RestoreBGClip((u16*)Launcher_GetBGImage(), draw_x - 1, draw_y - 1, draw_w + 2, draw_h + 2);
 
 	if((src_w == draw_w) && (src_h == draw_h))
 		Launcher_DrawPreparedHorizontalArtwork(src, src_w, draw_x, draw_y, draw_w, draw_h, 1);
 	else
 	{
 		Launcher_DrawScaledThumbClip(src, src_w, src_h, draw_x, draw_y, draw_w, draw_h);
-		Launcher_FinishCarouselArtwork(draw_x, draw_y, draw_w, draw_h);
+		Launcher_RestoreThumbCornerMask(draw_x, draw_y, draw_w, draw_h);
+		Launcher_DrawThumbBorderEx(draw_x, draw_y, draw_w, draw_h, 1);
 	}
 }
 
@@ -7814,6 +7827,9 @@ static void Launcher_ResetThumbCache(void)
 	launcher_cache_prev.has_thumbnail = 0;
 	launcher_cache_selected.has_thumbnail = 0;
 	launcher_cache_next.has_thumbnail = 0;
+	launcher_cache_prev.custom_thumbnail = 0;
+	launcher_cache_selected.custom_thumbnail = 0;
+	launcher_cache_next.custom_thumbnail = 0;
 	Launcher_InitScaleMaps();
 	memset(&launcher_thumbnail_workspace, 0, sizeof(launcher_thumbnail_workspace));
 	Launcher_InvalidateListArtScaledCache();
@@ -7851,7 +7867,7 @@ static int Launcher_ResolveIndexedName(void *opaque, const char *identity,
 	return ((attributes & AM_DIR) != 0) == (context->expect_directory != 0);
 }
 
-static u32 Launcher_LoadThumbDataForIndex(u32 absolute_index, u8 *thumb_data)
+static u32 Launcher_LoadThumbDataForIndex(u32 absolute_index, u8 *thumb_data, u32 *custom_thumbnail)
 {
 	TCHAR *name = 0;
 	TCHAR rom_dir[MAX_path_len];
@@ -7861,6 +7877,8 @@ static u32 Launcher_LoadThumbDataForIndex(u32 absolute_index, u8 *thumb_data)
 	u32 virtual_index = 0;
 	u32 total_entries = Launcher_GetTotalEntries();
 
+	if(custom_thumbnail)
+		*custom_thumbnail = 0;
 	if(!thumb_data || absolute_index >= total_entries)
 		return 0;
 
@@ -7873,6 +7891,8 @@ static u32 Launcher_LoadThumbDataForIndex(u32 absolute_index, u8 *thumb_data)
 			TCHAR custom_name[104];
 			Launcher_CustomThumbFileName(name, custom_name, sizeof(custom_name));
 			has_thumbnail = Launcher_LoadCustomThumbnailByName(custom_name, thumb_data - LAUNCHER_THUMB_BMP_HEADER);
+			if(has_thumbnail && custom_thumbnail)
+				*custom_thumbnail = 1;
 		}
 		if(!has_thumbnail && Launcher_IsValidGameCodeBytes((const u8*)&pNorFS[absolute_index].gamename[12]))
 			has_thumbnail = Launcher_LoadThumbnailByGameCode((const u8*)&pNorFS[absolute_index].gamename[12],
@@ -7899,7 +7919,13 @@ static u32 Launcher_LoadThumbDataForIndex(u32 absolute_index, u8 *thumb_data)
 		{
 			Launcher_CustomThumbFileName(launcher_resolved_entry_name, launcher_custom_thumb_name,
 				sizeof(launcher_custom_thumb_name));
-			return Launcher_LoadCustomThumbnailByName(launcher_custom_thumb_name, thumb_data - LAUNCHER_THUMB_BMP_HEADER);
+			if(Launcher_LoadCustomThumbnailByName(launcher_custom_thumb_name,
+				thumb_data - LAUNCHER_THUMB_BMP_HEADER))
+			{
+				if(custom_thumbnail)
+					*custom_thumbnail = 1;
+				return 1;
+			}
 		}
 		return 0;
 	}
@@ -7936,7 +7962,7 @@ static u32 Launcher_LoadThumbDataForIndex(u32 absolute_index, u8 *thumb_data)
 	if(!name)
 		return 0;
 	return Launcher_LoadThumbnailForPath(name, rom_dir,
-		thumb_data - LAUNCHER_THUMB_BMP_HEADER, known_gamecode);
+		thumb_data - LAUNCHER_THUMB_BMP_HEADER, known_gamecode, custom_thumbnail);
 }
 
 static void Launcher_LoadThumbCacheForIndex(LauncherThumbCache *cache, u32 absolute_index)
@@ -7946,7 +7972,8 @@ static void Launcher_LoadThumbCacheForIndex(LauncherThumbCache *cache, u32 absol
 
 	cache->valid = 1;
 	cache->absolute_index = absolute_index;
-	cache->has_thumbnail = Launcher_LoadThumbDataForIndex(absolute_index, cache->thumb_data);
+	cache->has_thumbnail = Launcher_LoadThumbDataForIndex(absolute_index, cache->thumb_data,
+		&cache->custom_thumbnail);
 }
 
 static void Launcher_CopyThumbCacheImage(LauncherThumbCache *dst, const LauncherThumbCache *src)
@@ -8024,6 +8051,7 @@ static void Launcher_InvalidateListArtScaledCache(void)
 		launcher_list_art_scaled_index[i] = 0xFFFFFFFF;
 		launcher_list_art_scaled_valid[i] = 0;
 		launcher_list_art_scaled_has_art[i] = 0;
+		launcher_list_art_scaled_custom[i] = 0;
 		launcher_list_art_scaled_sig_w[i] = 0;
 		launcher_list_art_scaled_sig_h[i] = 0;
 		launcher_list_art_scaled_sig_style[i] = 0;
@@ -8032,6 +8060,7 @@ static void Launcher_InvalidateListArtScaledCache(void)
 	launcher_list_art_cache_clock = 0;
 	launcher_list_art_scaled_selected_slot = 0xFF;
 	launcher_list_art_selected_has_art = 0;
+	launcher_list_art_custom = 0;
 	launcher_list_art_pending_index = 0xFFFFFFFF;
 	launcher_list_art_pending = 0;
 	launcher_list_art_idle_frames = 0;
@@ -8119,6 +8148,7 @@ static int Launcher_LoadListArtScaledSlot(u32 absolute_index, int w, int h)
 	int slot;
 	u8 *thumb_data = pReadCache + 0x10036;
 	u32 has_art;
+	u32 custom_thumbnail = 0;
 
 	if(absolute_index >= Launcher_GetTotalEntries())
 		return -1;
@@ -8131,7 +8161,7 @@ static int Launcher_LoadListArtScaledSlot(u32 absolute_index, int w, int h)
 	}
 
 	slot = Launcher_ChooseListArtScaledSlot(launcher_cache_center_index);
-	has_art = Launcher_LoadThumbDataForIndex(absolute_index, thumb_data);
+	has_art = Launcher_LoadThumbDataForIndex(absolute_index, thumb_data, &custom_thumbnail);
 	if(has_art)
 	{
 		Launcher_ScaleThumbToBox((const u16*)thumb_data,
@@ -8142,6 +8172,7 @@ static int Launcher_LoadListArtScaledSlot(u32 absolute_index, int w, int h)
 	launcher_list_art_scaled_index[slot] = absolute_index;
 	launcher_list_art_scaled_valid[slot] = 1;
 	launcher_list_art_scaled_has_art[slot] = (u8)has_art;
+	launcher_list_art_scaled_custom[slot] = (u8)(has_art && custom_thumbnail);
 	launcher_list_art_scaled_sig_w[slot] = (u8)w;
 	launcher_list_art_scaled_sig_h[slot] = (u8)h;
 	launcher_list_art_scaled_sig_style[slot] = (u8)launcher_thumbnail_style;
@@ -8172,16 +8203,23 @@ static s32 Launcher_GetListArtCachedState(u32 absolute_index, int *x, int *y, in
 		launcher_cache_selected.valid = 1;
 		launcher_cache_selected.absolute_index = absolute_index;
 		launcher_cache_selected.has_thumbnail = 0;
+		if(!preserve_current || !launcher_list_art_screen_has_art)
+			launcher_cache_selected.custom_thumbnail = 0;
 		Launcher_QueueListArtLoad(absolute_index);
 		if(!preserve_current || !launcher_list_art_screen_has_art)
 		{
 			launcher_list_art_scaled_selected_slot = 0xFF;
 			launcher_list_art_selected_has_art = 0;
+			launcher_list_art_custom = 0;
 		}
 		return -1;
 	}
 	has_art = slot >= 0 && launcher_list_art_scaled_valid[slot] &&
 	launcher_list_art_scaled_has_art[slot];
+	launcher_cache_selected.custom_thumbnail = slot >= 0 &&
+	launcher_list_art_scaled_custom[slot];
+	launcher_carousel_art_custom = launcher_cache_selected.custom_thumbnail;
+	launcher_list_art_custom = launcher_cache_selected.custom_thumbnail;
 	launcher_cache_selected.valid = 1;
 	launcher_cache_selected.absolute_index = absolute_index;
 	launcher_cache_selected.has_thumbnail = has_art;
@@ -8214,10 +8252,12 @@ static void Launcher_DrawCurrentListArtImageOnly(void)
 		return;
 
 	Launcher_GetListArtRect(&x, &y, &w, &h);
+	launcher_carousel_art_custom = launcher_cache_selected.custom_thumbnail;
 	launcher_carousel_art_draw = 1;
 	Launcher_DrawPreparedThumbMasked(Launcher_ListArtScaledBuffer(slot), w, x, y, w, h);
-	Launcher_DrawThumbBorder(x, y, w, h);
+	Launcher_DrawThumbBorderEx(x, y, w, h, 1);
 	launcher_carousel_art_draw = 0;
+	launcher_carousel_art_custom = 0;
 }
 
 static void Launcher_DrawListArtImageOnly(u32 show_offset, u32 file_select)
@@ -8395,6 +8435,7 @@ static void Launcher_BuildThumbCache(u32 center_index)
 		launcher_cache_selected.valid = 1;
 		launcher_cache_selected.absolute_index = center_index;
 		launcher_cache_selected.has_thumbnail = 0;
+		launcher_cache_selected.custom_thumbnail = 0;
 		Launcher_PreScaleListArtCache();
 		return;
 	}
@@ -8466,12 +8507,14 @@ static void Launcher_ShiftThumbCache(int move, u32 new_center_index)
 		launcher_cache_prev.valid = old_selected.valid;
 		launcher_cache_prev.absolute_index = old_selected.absolute_index;
 		launcher_cache_prev.has_thumbnail = old_selected.has_thumbnail;
+		launcher_cache_prev.custom_thumbnail = old_selected.custom_thumbnail;
 		if(old_selected.valid && old_selected.has_thumbnail)
 			Launcher_CopyThumbCacheImage(&launcher_cache_prev, &old_selected);
 
 		launcher_cache_selected.valid = old_next.valid;
 		launcher_cache_selected.absolute_index = old_next.absolute_index;
 		launcher_cache_selected.has_thumbnail = old_next.has_thumbnail;
+		launcher_cache_selected.custom_thumbnail = old_next.custom_thumbnail;
 		if(old_next.valid && old_next.has_thumbnail)
 			Launcher_CopyThumbCacheImage(&launcher_cache_selected, &old_next);
 
@@ -8507,12 +8550,14 @@ static void Launcher_ShiftThumbCache(int move, u32 new_center_index)
 		launcher_cache_next.valid = old_selected.valid;
 		launcher_cache_next.absolute_index = old_selected.absolute_index;
 		launcher_cache_next.has_thumbnail = old_selected.has_thumbnail;
+		launcher_cache_next.custom_thumbnail = old_selected.custom_thumbnail;
 		if(old_selected.valid && old_selected.has_thumbnail)
 			Launcher_CopyThumbCacheImage(&launcher_cache_next, &old_selected);
 
 		launcher_cache_selected.valid = old_prev.valid;
 		launcher_cache_selected.absolute_index = old_prev.absolute_index;
 		launcher_cache_selected.has_thumbnail = old_prev.has_thumbnail;
+		launcher_cache_selected.custom_thumbnail = old_prev.custom_thumbnail;
 		if(old_prev.valid && old_prev.has_thumbnail)
 			Launcher_CopyThumbCacheImage(&launcher_cache_selected, &old_prev);
 
@@ -8669,6 +8714,7 @@ static void __attribute__((unused)) Draw_ModernLauncher_SD_State(u32 show_offset
 	{
 	if(prev.name)
 	{
+		launcher_carousel_art_custom = launcher_cache_prev.custom_thumbnail;
 		if(prev_use_preview_panel)
 		{
 			Launcher_DrawPreparedHorizontalSidePreview(launcher_side_preview_left, left_x, left_y, side_w, side_h, outline, panel_fill);
@@ -8683,6 +8729,7 @@ static void __attribute__((unused)) Draw_ModernLauncher_SD_State(u32 show_offset
 
 	if(next.name)
 	{
+		launcher_carousel_art_custom = launcher_cache_next.custom_thumbnail;
 		if(next_use_preview_panel)
 		{
 			Launcher_DrawPreparedHorizontalSidePreview(launcher_side_preview_right, right_x, right_y, side_w, side_h, outline, panel_fill);
@@ -8699,6 +8746,7 @@ static void __attribute__((unused)) Draw_ModernLauncher_SD_State(u32 show_offset
 
 	if(selected_use_preview_panel)
 	{
+		launcher_carousel_art_custom = launcher_cache_selected.custom_thumbnail;
 		const u16 *src = Launcher_GetPreviewSourceForEntry(&selected);
 		Launcher_DrawHorizontalSelectedPreview(src,
 		selected.has_thumbnail ? Launcher_ThumbnailSourceWidth() : Launcher_NotFoundWidth(),
@@ -8732,6 +8780,7 @@ static void __attribute__((unused)) Draw_ModernLauncher_SD_State(u32 show_offset
 		Launcher_DrawFavouriteHeart(LAUNCHER_HORZ_HEART_X + x_shift, LAUNCHER_HORZ_HEART_Y, gl_color_heart);
 
 	launcher_carousel_art_draw = 0;
+	launcher_carousel_art_custom = 0;
 }
 
 static void Draw_ModernLauncher_SD(u32 show_offset, u32 file_select, u32 haveThumbnail)
@@ -8821,6 +8870,7 @@ static void Draw_ModernLauncher_SD(u32 show_offset, u32 file_select, u32 haveThu
 	{
 	if(prev.name)
 	{
+		launcher_carousel_art_custom = launcher_cache_prev.custom_thumbnail;
 		if(prev_use_preview_panel)
 		{
 			Launcher_DrawPreparedHorizontalSidePreview(launcher_side_preview_left, left_x, left_y, side_w, side_h, outline, panel_fill);
@@ -8839,6 +8889,7 @@ static void Draw_ModernLauncher_SD(u32 show_offset, u32 file_select, u32 haveThu
 
 	if(next.name)
 	{
+		launcher_carousel_art_custom = launcher_cache_next.custom_thumbnail;
 		if(next_use_preview_panel)
 		{
 			Launcher_DrawPreparedHorizontalSidePreview(launcher_side_preview_right, right_x, right_y, side_w, side_h, outline, panel_fill);
@@ -8859,6 +8910,7 @@ static void Draw_ModernLauncher_SD(u32 show_offset, u32 file_select, u32 haveThu
 
 	if(selected_use_preview_panel)
 	{
+		launcher_carousel_art_custom = launcher_cache_selected.custom_thumbnail;
 		const u16 *src = Launcher_GetPreviewSourceForEntry(&selected);
 		Launcher_DrawHorizontalSelectedPreview(src,
 		selected.has_thumbnail ? Launcher_ThumbnailSourceWidth() : Launcher_NotFoundWidth(),
@@ -8891,6 +8943,7 @@ static void Draw_ModernLauncher_SD(u32 show_offset, u32 file_select, u32 haveThu
 	if(!Launcher_IsNORPage() && !selected.is_folder && Launcher_IsFavouriteSDIndex(absolute_index))
 		Launcher_DrawFavouriteHeart(LAUNCHER_HORZ_HEART_X, LAUNCHER_HORZ_HEART_Y, gl_color_heart);
 	launcher_carousel_art_draw = 0;
+	launcher_carousel_art_custom = 0;
 }
 
 static void Draw_ModernLauncher_SD_Vertical_State(u32 show_offset, u32 file_select)
@@ -8980,6 +9033,7 @@ static void Draw_ModernLauncher_SD_Vertical_State(u32 show_offset, u32 file_sele
 	{
 	if(prev.name)
 	{
+		launcher_carousel_art_custom = launcher_cache_prev.custom_thumbnail;
 		if(prev_use_preview_panel)
 		{
 			if(launcher_thumbnail_style == LAUNCHER_THUMB_STYLE_BOX)
@@ -9010,6 +9064,7 @@ static void Draw_ModernLauncher_SD_Vertical_State(u32 show_offset, u32 file_sele
 
 	if(next.name)
 	{
+		launcher_carousel_art_custom = launcher_cache_next.custom_thumbnail;
 		if(next_use_preview_panel)
 		{
 			if(launcher_thumbnail_style == LAUNCHER_THUMB_STYLE_BOX)
@@ -9040,6 +9095,7 @@ static void Draw_ModernLauncher_SD_Vertical_State(u32 show_offset, u32 file_sele
 
 	if(selected_use_preview_panel)
 	{
+		launcher_carousel_art_custom = launcher_cache_selected.custom_thumbnail;
 		if(launcher_thumbnail_style == LAUNCHER_THUMB_STYLE_BOX)
 		{
 			Launcher_RestoreBGClip((u16*)Launcher_GetBGImage(), thumb_x - 1, thumb_y - 1, thumb_w + 2, 1);
@@ -9053,7 +9109,8 @@ static void Draw_ModernLauncher_SD_Vertical_State(u32 show_offset, u32 file_sele
 			   vertical background artwork behind the transparent margins. */
 			Launcher_RestoreBGClip((u16*)Launcher_GetBGImage(), thumb_x + 14, thumb_y, 56, 56);
 			Launcher_DrawPicClipStride(launcher_vert_selected_scaled + 14, 84, thumb_x + 14, thumb_y, 56, 56);
-			Launcher_FinishCarouselArtwork(thumb_x + 14, thumb_y, 56, 56);
+			Launcher_RestoreThumbCornerMask(thumb_x + 14, thumb_y, 56, 56);
+			Launcher_DrawThumbBorderEx(thumb_x + 14, thumb_y, 56, 56, 1);
 		}
 		else
 		{
@@ -9065,7 +9122,8 @@ static void Draw_ModernLauncher_SD_Vertical_State(u32 show_offset, u32 file_sele
 			   drawing a replacement that may contain transparent pixels. */
 			Launcher_RestoreBGClip((u16*)Launcher_GetBGImage(), thumb_x, thumb_y, thumb_w, thumb_h);
 			Launcher_DrawPicClipStride(launcher_vert_selected_scaled, 84, thumb_x, thumb_y, thumb_w, thumb_h);
-			Launcher_FinishCarouselArtwork(thumb_x, thumb_y, thumb_w, thumb_h);
+			Launcher_RestoreThumbCornerMask(thumb_x, thumb_y, thumb_w, thumb_h);
+			Launcher_DrawThumbBorderEx(thumb_x, thumb_y, thumb_w, thumb_h, 1);
 		}
 	}
 	else
@@ -9081,9 +9139,9 @@ static void Draw_ModernLauncher_SD_Vertical_State(u32 show_offset, u32 file_sele
 	if(selected_use_preview_panel)
 	{
 		if(launcher_thumbnail_style == LAUNCHER_THUMB_STYLE_BOX)
-			Launcher_DrawThumbBorder(thumb_x + 14, thumb_y, 56, 56);
+			Launcher_DrawThumbBorderEx(thumb_x + 14, thumb_y, 56, 56, 1);
 		else
-			Launcher_DrawThumbBorder(thumb_x, thumb_y, thumb_w, thumb_h);
+			Launcher_DrawThumbBorderEx(thumb_x, thumb_y, thumb_w, thumb_h, 1);
 	}
 
 	}
@@ -9113,6 +9171,7 @@ static void Draw_ModernLauncher_SD_Vertical_State(u32 show_offset, u32 file_sele
 	if(Launcher_NeedsVerticalFolderLabelRedraw())
 		Launcher_DrawVerticalFolderLabel();
 	launcher_carousel_art_draw = 0;
+	launcher_carousel_art_custom = 0;
 }
 
 //---------------------------------------------------------------------------------
@@ -9830,6 +9889,7 @@ static const char *Launcher_RoundedCornersText(void)
     {
         case 1: return DSTEXT_ROUNDED_FULL;
         case 2: return DSTEXT_ROUNDED_NO_START;
+        case 3: return "CUSTOM Only";
         default: return DSTEXT_OFF;
     }
 }
@@ -9840,12 +9900,20 @@ static const char *Launcher_RoundedCornersSettingName(void)
     {
         case 1: return "Full";
         case 2: return "No Start";
+        case 3: return "CUSTOM Only";
         default: return "Off";
     }
 }
 
 static u32 Launcher_RoundedCornersForCarousel(void)
 {
+    return Launcher_RoundedCornersForCustom(launcher_carousel_art_custom);
+}
+
+static inline __attribute__((always_inline)) u32 Launcher_RoundedCornersForCustom(u32 custom_thumbnail)
+{
+    if(launcher_art_rounded_corners == 3)
+        return custom_thumbnail;
     return launcher_art_rounded_corners != 0;
 }
 
@@ -10031,6 +10099,26 @@ static void Launcher_ReadCleanListSetting(void)
     Launcher_ReadOnOffSetting("Clean list", &launcher_clean_list, 0);
 }
 
+static void Launcher_ReadCustomArtOnlySetting(void)
+{
+    char buf[32];
+    unsigned migrate = 0;
+
+    launcher_legacy_custom_art_only = 0;
+    memset(buf, 0, sizeof(buf));
+    if(Launcher_SettingsReadValue("CUSTOM Only", buf, sizeof(buf)))
+    {
+        launcher_legacy_custom_art_only =
+            (u16)Launcher_ParseOnOff(buf, DSTEXT_ON, DSTEXT_OFF, 0, &migrate);
+        launcher_settings_migration_pending = 1;
+    }
+}
+
+static void Launcher_ReadRememberCheatsSetting(void)
+{
+    Launcher_ReadOnOffSetting("Remember cheats", &gl_cheat_remember, 0);
+}
+
 static void Launcher_ReadWrapAroundSetting(void)
 {
     char buf[32];
@@ -10077,7 +10165,7 @@ typedef struct
     u8 count;
     u16 fallback;               /* unrecognised text, and a missing key unless keep_missing */
     u8 keep_missing;            /* keep the current value when the key is missing */
-    const char *canonical[4];   /* spellings the writer produces; any other text asks for a rewrite (none: never) */
+    const char *canonical[4];  /* spellings the writer produces; any other text asks for a rewrite (none: never) */
     u16 (*option_count)(void);  /* a value at or above this count falls back (NULL: no limit) */
 } Launcher_EnumSetting;
 
@@ -10103,6 +10191,7 @@ static const Launcher_Choice launcher_rounded_choices[] = {
     { { "Full", "On", "Yes" }, LTXT_ROUNDED_FULL, '1', 1 },
     { { NULL }, LTXT_ON, 0, 1 },
     { { "No Start", "No start screen" }, LTXT_ROUNDED_NO_START, '2', 2 },
+    { { "CUSTOM Only", "Full CUSTOM Only", "No Start CUSTOM Only" }, 0xFFFFu, 0, 3 },
 };
 static const Launcher_Choice launcher_vertical_choices[] = {
     { { "Left" }, LTXT_ALIGN_LEFT, 0, LAUNCHER_SIDE_ALIGN_LEFT },
@@ -10126,7 +10215,8 @@ static const Launcher_EnumSetting launcher_list_art_setting = {
 static const Launcher_EnumSetting launcher_border_setting = {
     "Art border", launcher_border_choices, 4, 0, 0, { NULL }, NULL };
 static const Launcher_EnumSetting launcher_rounded_setting = {
-    "Rounded corners", launcher_rounded_choices, 3, 0, 0, { "Full", "No Start", "Off" }, NULL };
+    "Rounded corners", launcher_rounded_choices, 4, 0, 0,
+    { "Full", "No Start", "Off", "CUSTOM Only" }, NULL };
 static const Launcher_EnumSetting launcher_vertical_setting = {
     "Vertical side", launcher_vertical_choices, 3, LAUNCHER_SIDE_ALIGN_CENTER, 0,
     { "Center", "Left", "Right", "Custom" }, Launcher_VerticalSideOptionCount };
@@ -10145,7 +10235,8 @@ static u16 Launcher_MatchChoice(const Launcher_EnumSetting *setting, const char 
         for(j = 0; j < 3 && choice->english[j]; j++)
             if(!strcasecmp(text, choice->english[j]))
                 return choice->value;
-        if(!strcasecmp(text, Launcher_Text(choice->text_id)) || (choice->digit && text[0] == choice->digit))
+        if((choice->text_id != 0xFFFFu && !strcasecmp(text, Launcher_Text(choice->text_id))) ||
+           (choice->digit && text[0] == choice->digit))
             return choice->value;
     }
     return setting->fallback;
@@ -10175,7 +10266,35 @@ static void Launcher_ReadEnumSetting(const Launcher_EnumSetting *setting, u16 *t
 static void Launcher_ReadClockFormatSetting(void) { Launcher_ReadEnumSetting(&launcher_clock_setting, &launcher_clock_24_hour); }
 static void Launcher_ReadViewModeSetting(void) { Launcher_ReadEnumSetting(&launcher_view_setting, &gl_show_Thumbnail); }
 static void Launcher_ReadListArtPositionSetting(void) { Launcher_ReadEnumSetting(&launcher_list_art_setting, &launcher_list_art_position); }
-static void Launcher_ReadArtBorderSetting(void) { Launcher_ReadEnumSetting(&launcher_border_setting, &launcher_art_border_mode); }
+static void Launcher_ReadArtBorderSetting(void)
+{
+    char value[32];
+    static const char *legacy_values[] = {
+        "Accent CUSTOM Only", "Black CUSTOM Only", "Grey CUSTOM Only", "White CUSTOM Only",
+        "Gray CUSTOM Only"
+    };
+    u8 i;
+
+    if(Launcher_SettingsReadValue("Art border", value, sizeof(value)))
+    {
+        for(i = 0; i < 4; i++)
+        {
+            if(!strcasecmp(value, legacy_values[i]))
+            {
+                launcher_art_border_mode = i + 1;
+                launcher_settings_migration_pending = 1;
+                return;
+            }
+        }
+        if(!strcasecmp(value, legacy_values[4]))
+        {
+            launcher_art_border_mode = 3;
+            launcher_settings_migration_pending = 1;
+            return;
+        }
+    }
+    Launcher_ReadEnumSetting(&launcher_border_setting, &launcher_art_border_mode);
+}
 static void Launcher_ReadRoundedCornersSetting(void) { Launcher_ReadEnumSetting(&launcher_rounded_setting, &launcher_art_rounded_corners); }
 static void Launcher_ReadVerticalSideSetting(void) { Launcher_ReadEnumSetting(&launcher_vertical_setting, &launcher_vertical_side_align); }
 static void Launcher_ReadHorizontalSideSetting(void) { Launcher_ReadEnumSetting(&launcher_horizontal_setting, &launcher_horizontal_side_align); }
@@ -10332,6 +10451,7 @@ typedef enum
     SETTINGS_ADDON_HOTKEY,
     SETTINGS_FULL_INTRO,
     SETTINGS_BACKUP_SAVES,
+    SETTINGS_REMEMBER_CHEATS,
     SETTINGS_LED_SETTINGS,
     SETTINGS_HELP,
     SETTINGS_TOTAL
@@ -10380,6 +10500,7 @@ static void Launcher_SettingsGetLine(u32 item, char *out, u32 out_size)
         case SETTINGS_SLEEP_HOTKEY: label = DSTEXT_SETTINGS_SLEEP_HOTKEY; value = ">"; break;
         case SETTINGS_ADDON_HOTKEY: label = DSTEXT_SETTINGS_ADDON_HOTKEY; value = ">"; break;
         case SETTINGS_FULL_INTRO: label = DSTEXT_SETTINGS_ENABLE_BIOS; value = Launcher_OnOffText(gl_toggle_reset); break;
+        case SETTINGS_REMEMBER_CHEATS: label = DSTEXT_SETTINGS_REMEMBER_CHEATS; value = Launcher_OnOffText(gl_cheat_remember); break;
         case SETTINGS_BACKUP_SAVES: label = DSTEXT_SETTINGS_BACKUP_SAVES; value = Launcher_OnOffText(gl_toggle_backup); break;
         case SETTINGS_LED_SETTINGS: label = DSTEXT_SETTINGS_LED; value = ">"; break;
         case SETTINGS_HELP: label = DSTEXT_SETTINGS_HELP; value = ">"; break;
@@ -11231,6 +11352,7 @@ static void Launcher_SaveUnifiedSettings(void)
         f_printf(&f, "\n# Options: On, Off\n");
         f_printf(&f, "# Wrap list moves from the last browser item to the first, and back again.\n");
         f_printf(&f, "Wrap list = %s\n", launcher_wrap_around ? "On" : "Off");
+        f_printf(&f, "Remember cheats = %s\n", gl_cheat_remember ? "On" : "Off");
         f_printf(&f, "# Animations and Side size affect the two carousel views.\n");
         f_printf(&f, "Animations = %s\n", launcher_carousel_animations ? "On" : "Off");
         f_printf(&f, "Side size = %s\n", launcher_carousel_equal_sides ? "Equal" : "Small");
@@ -11257,8 +11379,9 @@ static void Launcher_SaveUnifiedSettings(void)
         f_printf(&f, "\n# Options: Off, Accent, Black, Grey, White\n");
         f_printf(&f, "# Art border draws a one-pixel outline around the selected carousel artwork.\n");
         f_printf(&f, "Art border = %s\n", Launcher_ArtBorderSettingName());
-        f_printf(&f, "\n# Options: Full, No Start, Off\n");
-        f_printf(&f, "# Rounded corners rounds artwork. No Start keeps the Start screen artwork square.\n");
+        f_printf(&f, "\n# Options: Full, No Start, Off, CUSTOM Only\n");
+        f_printf(&f, "# CUSTOM Only rounds only artwork loaded from CUSTOM folders.\n");
+        f_printf(&f, "# No Start keeps the Start screen artwork square.\n");
         f_printf(&f, "Rounded corners = %s\n", Launcher_RoundedCornersSettingName());
 #if LAUNCHER_VERT_SIDE_CUSTOM_ENABLED
         f_printf(&f, "\n# Options: Center, Left, Right, Custom\n");
@@ -11812,9 +11935,9 @@ static void Launcher_SettingsToggle(u32 item, int dir)
             break;
         case SETTINGS_ROUNDED_CORNERS:
             if(dir < 0)
-                launcher_art_rounded_corners = (launcher_art_rounded_corners == 0) ? 2 : (launcher_art_rounded_corners - 1);
+                launcher_art_rounded_corners = (launcher_art_rounded_corners == 0) ? 3 : (launcher_art_rounded_corners - 1);
             else
-                launcher_art_rounded_corners = (launcher_art_rounded_corners + 1) % 3;
+                launcher_art_rounded_corners = (launcher_art_rounded_corners + 1) % 4;
             Launcher_SaveUnifiedSettings();
             break;
         case SETTINGS_VERTICAL_SIDE:
@@ -11924,6 +12047,12 @@ static void Launcher_SettingsToggle(u32 item, int dir)
         case SETTINGS_FULL_INTRO:
             gl_toggle_reset ^= 1;
             Launcher_SaveSettingsInfo();
+            break;
+        case SETTINGS_REMEMBER_CHEATS:
+            gl_cheat_remember ^= 1;
+            CheatSelectionForget();
+            gl_cheat_count = 0;
+            Launcher_SaveTheme();
             break;
         case SETTINGS_BACKUP_SAVES:
             gl_toggle_backup ^= 1;
@@ -13934,7 +14063,7 @@ typedef enum
 
 static const u32 launcher_settings_interface_items[] = { SETTINGS_TIME_SETTINGS, SETTINGS_CLOCK_FORMAT, SETTINGS_LANGUAGE, SETTINGS_SOUNDS, SETTINGS_HIDE_SYSTEM, SETTINGS_LIST_FOLDERS, SETTINGS_CLEAN_LIST, SETTINGS_WRAP_AROUND, SETTINGS_THEME_MODE, SETTINGS_THEME, SETTINGS_LOAD_STYLE, SETTINGS_VIEW_MODE, SETTINGS_ANIMATIONS, SETTINGS_SIDE_SIZE, SETTINGS_THUMBNAILS, SETTINGS_ART_BORDER,
     SETTINGS_ROUNDED_CORNERS, SETTINGS_VERTICAL_SIDE, SETTINGS_HORIZONTAL_SIDE, SETTINGS_LIST_ART_POSITION, SETTINGS_START_ENABLED, SETTINGS_BOOT_TO, SETTINGS_START_SOURCE };
-static const u32 launcher_settings_games_items[] = { SETTINGS_BOOT_ENGINE, SETTINGS_AUTO_SAVE, SETTINGS_AUTO_START, SETTINGS_ADDON_SETTINGS, SETTINGS_BOOT_MODE, SETTINGS_SLEEP_HOTKEY, SETTINGS_ADDON_HOTKEY, SETTINGS_FULL_INTRO, SETTINGS_BACKUP_SAVES };
+static const u32 launcher_settings_games_items[] = { SETTINGS_BOOT_ENGINE, SETTINGS_AUTO_SAVE, SETTINGS_AUTO_START, SETTINGS_ADDON_SETTINGS, SETTINGS_BOOT_MODE, SETTINGS_SLEEP_HOTKEY, SETTINGS_ADDON_HOTKEY, SETTINGS_FULL_INTRO, SETTINGS_BACKUP_SAVES, SETTINGS_REMEMBER_CHEATS };
 static const u32 launcher_settings_hardware_items[] = { SETTINGS_MODE_B, SETTINGS_INGAME_RTC, SETTINGS_LED_SETTINGS };
 
 static const u32 *launcher_settings_active_items = 0;
@@ -14395,12 +14524,19 @@ int main(void) {
 	Launcher_ReadListFoldersSetting();
 	Launcher_ReadCleanListSetting();
 	Launcher_ReadWrapAroundSetting();
+	Launcher_ReadRememberCheatsSetting();
+	Launcher_ReadCustomArtOnlySetting();
 	Launcher_ReadMotionSettings();
 	Launcher_ReadClockFormatSetting();
 	Launcher_ReadViewModeSetting();
 	Launcher_ReadListArtPositionSetting();
 	Launcher_ReadArtBorderSetting();
 	Launcher_ReadRoundedCornersSetting();
+	if(launcher_legacy_custom_art_only)
+	{
+		if(launcher_art_rounded_corners != 0)
+			launcher_art_rounded_corners = 3;
+	}
 	Launcher_ReadVerticalSideSetting();
 	Launcher_ReadHorizontalSideSetting();
 	Launcher_ReadAutoStartKey();
@@ -14788,7 +14924,8 @@ re_showfile:
 			if(launcher_restore_popup_region)
 			{
 				Launcher_RestorePopupRegionForPage(page_num,
-				launcher_cache_prev.valid && launcher_cache_prev.has_thumbnail);
+				launcher_cache_prev.valid && launcher_cache_prev.has_thumbnail,
+				launcher_cache_prev.custom_thumbnail);
 				if(Launcher_IsListLikeMode())
 				{
 					Launcher_RestoreListPopupContent(show_offset, file_select);
@@ -14995,7 +15132,8 @@ re_showfile:
 			if(launcher_restore_popup_region)
 			{
 				Launcher_RestorePopupRegionForPage(page_num,
-				launcher_cache_prev.valid && launcher_cache_prev.has_thumbnail);
+				launcher_cache_prev.valid && launcher_cache_prev.has_thumbnail,
+				launcher_cache_prev.custom_thumbnail);
 				if(Launcher_IsListLikeMode())
 				{
 					Launcher_RestoreListPopupContent(show_offset, file_select);
@@ -15327,7 +15465,7 @@ re_showfile:
 								show_offset = 0;
 								file_select = list_game_total - 1;
 							}
-							Launcher_BuildThumbCache(new_index);
+							Launcher_ShiftThumbCache(move, new_index);
 						}
 						else
 						{
@@ -15421,7 +15559,7 @@ re_showfile:
 								show_offset = 0;
 								file_select = list_game_total - 1;
 							}
-							Launcher_BuildThumbCache(new_index);
+							Launcher_ShiftThumbCache(move, new_index);
 						}
 						else
 						{
@@ -16574,8 +16712,13 @@ if (is_EMU == 0xff)
 	else{ //gba file
 		res=f_chdir(currentpath);//can open  re list game
 		havecht = Check_cheat_file(pfilename);
+		/* Never carry compiled codes between different game identities. */
 		if(!CheatSelectionAppliesTo(pfilename, havecht))
+		{
+			gl_cheat_count = 0;
 			gl_cheat_selected_count = 0;
+		}
+		f_chdir(currentpath);
 		old_Save_num = Check_mde_file(pfilename);
 		Save_num	= old_Save_num;
 		MENU_max = 4+ ((gl_cheat_on==1)? ((havecht>0)?1:0):0) ;
@@ -16698,7 +16841,9 @@ if (is_EMU == 0xff)
 			}
 			else if(MENU_line==5){
 				UIAudio_PlayAccept();
-				//open cht file
+				// The cheat menu also borrows the shared artwork/audio workspace.
+				UIAudio_StopForSharedBufferUse();
+				Launcher_ResetThumbCache();
 				Open_cht_file(pfilename,havecht);
 				f_chdir(currentpath);
 				launcher_reopen_sd_menu_after_redraw = 1;
@@ -16723,6 +16868,14 @@ load_file:
 	Launcher_ResetThumbCache();
 
 	UIAudio_StopForSharedBufferUse();
+	/* Parse only after launch animation and cache invalidation, and before
+	   FAT/ROM work reuses the shared cheat-menu workspace. */
+	if(!is_EMU && havecht && gl_cheat_remember &&
+		!CheatSelectionAppliesTo(pfilename, havecht))
+	{
+		CheatStateLoadHeadless(pfilename, havecht);
+		f_chdir(currentpath);
+	}
 	Clear(0, 0, 240, 160, gl_color_cheat_black, 1);
 	//DrawHZText12(gl_Loading,0,(240-strlen(gl_Loading)*6)/2,74, gl_color_text,1);
 

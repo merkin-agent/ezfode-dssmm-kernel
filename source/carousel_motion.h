@@ -4,7 +4,7 @@
 #define DS_STYLE_CAROUSEL_MOTION_H
 #include <stdint.h>
 typedef struct { int x, y, w, h; } LauncherMotionRect;
-typedef struct { const u16 *pixels; int w, h; u32 icon, transparent; } LauncherMotionImage;
+typedef struct { const u16 *pixels; int w, h; u32 icon, transparent, custom; } LauncherMotionImage;
 #define LAUNCHER_MOTION_FRAME ((u16*)(pReadCache + 0x200))
 #define LAUNCHER_MOTION_MAX_PIXELS ((0x10000 - 0x200) / 2)
 typedef struct
@@ -22,12 +22,13 @@ typedef char LauncherMotionIncomingFits[
    its 16-bit bus is substantially faster than EWRAM instruction fetches. All
    calls out of this copied section use absolute long-call targets. */
 #define LAUNCHER_MOTION_CODE_ADDRESS 0x06014200
+#define LAUNCHER_MOTION_CODE_END 0x06018000
 #define LAUNCHER_MOTION_FAST ARM_CODE __attribute__((section("motion_code"), aligned(4), noinline, optimize("O2")))
 extern const u8 __start_motion_code[], __stop_motion_code[];
 static u32 Launcher_MotionInstallCode(void)
 {
     u32 size = (u32)((uintptr_t)__stop_motion_code - (uintptr_t)__start_motion_code);
-    if(size > 0x18000 - LAUNCHER_MOTION_CODE_ADDRESS) return 0;
+    if(!size || (size & 3) || size > LAUNCHER_MOTION_CODE_END - LAUNCHER_MOTION_CODE_ADDRESS) return 0;
     dmaCopy(__start_motion_code, (void*)LAUNCHER_MOTION_CODE_ADDRESS, size);
     return 1;
 }
@@ -37,10 +38,10 @@ static u16 __attribute__((noinline, long_call)) Launcher_MotionBorderColour(u32 
     return Launcher_ArtBorderColourEx(selected);
 }
 
-static inline __attribute__((always_inline)) int Launcher_MotionInset(int row, int height)
+static inline __attribute__((always_inline)) int Launcher_MotionInset(int row, int height, u32 custom)
 {
     static const u8 curve[5] = {5, 3, 2, 1, 1};
-    if(!Launcher_RoundedCornersForCarousel()) return 0;
+    if(!Launcher_RoundedCornersForCustom(custom)) return 0;
     if(row >= height / 2) row = height - 1 - row;
     return row < 5 ? curve[row] : 0;
 }
@@ -97,7 +98,7 @@ static LauncherMotionRect Launcher_MotionSlot(int slot, u32 view)
 static LauncherMotionImage Launcher_MotionImage(const LauncherThumbCache *cache, u32 index)
 {
     LauncherEntryInfo info;
-    LauncherMotionImage image = {0, 0, 0, 0, 0};
+    LauncherMotionImage image = {0, 0, 0, 0, 0, 0};
     if(cache && !cache->valid) return image;
     memset(&info, 0, sizeof(info));
     Launcher_GetEntryInfo(index, &info);
@@ -107,6 +108,7 @@ static LauncherMotionImage Launcher_MotionImage(const LauncherThumbCache *cache,
         image.pixels = (const u16*)cache->thumb_data;
         image.w = Launcher_ThumbnailSourceWidth();
         image.h = Launcher_ThumbnailSourceHeight();
+        image.custom = cache->custom_thumbnail;
     }
     else if(Launcher_ShouldUsePreviewPanel(&info))
     {
@@ -222,7 +224,7 @@ static void LAUNCHER_MOTION_FAST Launcher_MotionBackgroundCode(
             int y = r.y + row - rects[i].y, a, b, inset;
             if(!images[i].pixels || images[i].icon || images[i].transparent ||
                y < 0 || y >= rects[i].h) continue;
-            inset = Launcher_MotionInset(y, rects[i].h);
+            inset = Launcher_MotionInset(y, rects[i].h, images[i].custom);
             a = rects[i].x + inset - r.x;
             b = rects[i].x + rects[i].w - inset - r.x;
             if(a < 0) a = 0;
@@ -296,7 +298,7 @@ static void LAUNCHER_MOTION_FAST Launcher_MotionBlitCode(LauncherMotionRect clip
     {
         const u16 *source = image.pixels + (sy >> 16) * image.w;
         u16 *dest = LAUNCHER_MOTION_FRAME + (r.y + row - clip.y) * clip.w;
-        int inset = image.icon ? 0 : Launcher_MotionInset(row, r.h);
+        int inset = image.icon ? 0 : Launcher_MotionInset(row, r.h, image.custom);
         x0 = inset; x1 = r.w - inset;
         if(r.x + x0 < clip.x) x0 = clip.x - r.x;
         if(r.x + x1 > clip.x + clip.w) x1 = clip.x + clip.w - r.x;
@@ -306,7 +308,7 @@ static void LAUNCHER_MOTION_FAST Launcher_MotionBlitCode(LauncherMotionRect clip
             Launcher_MotionCopyPixels(source, dest + r.x + x0 - clip.x,
                 map + x0, x1 - x0, image.icon ? 1 : (image.transparent ? 2 : 0));
     }
-    if(!image.icon && launcher_art_border_mode)
+    if(!image.icon && Launcher_ArtBorderEnabled())
     {
         u16 colour = Launcher_MotionBorderColour(selected);
         int inset;
@@ -316,16 +318,18 @@ static void LAUNCHER_MOTION_FAST Launcher_MotionBlitCode(LauncherMotionRect clip
         {
             if(row == -1 || row == r.h)
             {
-                inset = Launcher_MotionInset(0, r.h);
+                inset = Launcher_MotionInset(0, r.h, image.custom);
                 /* Square borders include the four outer corner pixels. */
                 for(col = inset ? inset : -1; col < r.w - inset + (inset == 0); col++)
                     Launcher_MotionPixel(clip, r.x + col, r.y + row, colour);
             }
             else
             {
-                int inner = Launcher_MotionInset(row, r.h), outer = inner - 1;
-                if(row && Launcher_MotionInset(row - 1, r.h) < outer) outer = Launcher_MotionInset(row - 1, r.h);
-                if(row + 1 < r.h && Launcher_MotionInset(row + 1, r.h) < outer) outer = Launcher_MotionInset(row + 1, r.h);
+                int inner = Launcher_MotionInset(row, r.h, image.custom), outer = inner - 1;
+                if(row && Launcher_MotionInset(row - 1, r.h, image.custom) < outer)
+                    outer = Launcher_MotionInset(row - 1, r.h, image.custom);
+                if(row + 1 < r.h && Launcher_MotionInset(row + 1, r.h, image.custom) < outer)
+                    outer = Launcher_MotionInset(row + 1, r.h, image.custom);
                 for(col = outer; col < inner; col++)
                 {
                     Launcher_MotionPixel(clip, r.x + col, r.y + row, colour);
@@ -340,13 +344,13 @@ static void Launcher_MotionBackground(LauncherMotionRect r, const LauncherMotion
     const LauncherMotionImage *images, int count)
 {
     void (*render)(LauncherMotionRect, const LauncherMotionRect*, const LauncherMotionImage*, int) =
-        (void*)(LAUNCHER_MOTION_CODE_ADDRESS + (const u8*)Launcher_MotionBackgroundCode - __start_motion_code);
+        (void*)(LAUNCHER_MOTION_CODE_ADDRESS + (uintptr_t)Launcher_MotionBackgroundCode - (uintptr_t)__start_motion_code);
     render(r, rects, images, count);
 }
 static void Launcher_MotionBlit(LauncherMotionRect clip, LauncherMotionRect r, LauncherMotionImage image, u32 selected)
 {
     void (*render)(LauncherMotionRect, LauncherMotionRect, LauncherMotionImage, u32) =
-        (void*)(LAUNCHER_MOTION_CODE_ADDRESS + (const u8*)Launcher_MotionBlitCode - __start_motion_code);
+        (void*)(LAUNCHER_MOTION_CODE_ADDRESS + (uintptr_t)Launcher_MotionBlitCode - (uintptr_t)__start_motion_code);
     render(clip, r, image, selected);
 }
 
@@ -414,16 +418,9 @@ static u32 Launcher_DrawMotionRest(void)
     }
     Launcher_MotionBackground(clip, LAUNCHER_MOTION_WORK->current, LAUNCHER_MOTION_WORK->images, 3);
     for(slot = -1; slot <= 1; slot += 2)
-    {
-        LauncherMotionImage image = Launcher_MotionImage(cache[slot + 1], cache[slot + 1]->absolute_index);
-        LauncherMotionRect r = Launcher_MotionImageRect(Launcher_MotionSlot(slot, view), image.icon, slot);
-        Launcher_MotionBlit(clip, r, image, 0);
-    }
-    {
-        LauncherMotionImage image = Launcher_MotionImage(cache[1], cache[1]->absolute_index);
-        LauncherMotionRect r = Launcher_MotionImageRect(Launcher_MotionSlot(0, view), image.icon, 0);
-        Launcher_MotionBlit(clip, r, image, 1);
-    }
+        Launcher_MotionBlit(clip, LAUNCHER_MOTION_WORK->current[slot + 1],
+            LAUNCHER_MOTION_WORK->images[slot + 1], 0);
+    Launcher_MotionBlit(clip, LAUNCHER_MOTION_WORK->current[1], LAUNCHER_MOTION_WORK->images[1], 1);
     Launcher_MotionPresent(clip);
     return 1;
 }
@@ -468,10 +465,12 @@ static void Launcher_AnimateCarouselMove(int move, u32 new_index)
         if(item < 3)
         {
             incoming->has_thumbnail = cache[item]->has_thumbnail;
+            incoming->custom_thumbnail = cache[item]->custom_thumbnail;
             if(incoming->has_thumbnail)
                 dmaCopy(cache[item]->thumb_data, incoming->thumb_data, Launcher_ThumbnailSourceWidth() * Launcher_ThumbnailSourceHeight() * 2);
         }
-        else incoming->has_thumbnail = Launcher_LoadThumbDataForIndex(incoming->absolute_index, incoming->thumb_data);
+        else incoming->has_thumbnail = Launcher_LoadThumbDataForIndex(incoming->absolute_index,
+            incoming->thumb_data, &incoming->custom_thumbnail);
     }
     Launcher_MotionPollInput(&physical);
     images[3] = Launcher_MotionImage(incoming, incoming->absolute_index);
@@ -551,6 +550,7 @@ static void Launcher_MotionLoadIncoming(LauncherThumbCache *cache, u32 index)
         cache->valid = 1;
         cache->absolute_index = index;
         cache->has_thumbnail = incoming->has_thumbnail;
+        cache->custom_thumbnail = incoming->custom_thumbnail;
         if(cache->has_thumbnail)
             dmaCopy(incoming->thumb_data, cache->thumb_data,
                 Launcher_ThumbnailSourceWidth() * Launcher_ThumbnailSourceHeight() * 2);

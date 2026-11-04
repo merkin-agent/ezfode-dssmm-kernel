@@ -1,83 +1,69 @@
-# DS Style Merkin Mix Kernel for EZ-FLASH OMEGA Definitive Edition
+# DS Style Merkin Mix
 
-DS Style is a custom kernel for the **EZ-FLASH OMEGA Definitive Edition**. It is based on the official EZ-FLASH OMEGA DE kernel source and Sterophonick's SimpleLight custom kernel and replaces the stock launcher with a Nintendo DS-inspired interface, theme system, thumbnail views, language options, and related quality-of-life changes.
+A custom kernel for the **EZ-FLASH OMEGA Definitive Edition**, maintained by Merkin ([voluptuary](https://github.com/voluptuary)). This fork builds on [FrankieT19's DS Style](https://github.com/FrankieT19/omega-de-ds-style-kernel), Sterophonick's SimpleLight, and the official EZ-FLASH kernel.
 
 > [!WARNING]
-> This repository is for the **EZ-FLASH OMEGA Definitive Edition only**. Do not flash this build to the original EZ-FLASH OMEGA.
+> **Definitive Edition only.** Do not install this kernel on the original EZ-FLASH OMEGA.
 
-## User Guide
+## Downloads and status
 
-Read the complete [DS Style User Guide](https://frankiet19.github.io/omega-de-ds-style-kernel/) for installation, everyday use, artwork, customisation and troubleshooting.
+Download `ezkernelnew.bin` from [Merkin Mix releases](https://github.com/voluptuary/ezfode-dssmm-kernel/releases). Copy it to the SD-card root, then boot the cartridge while holding **R** to update the kernel. Back up saves before updating.
 
-## Web
+**[Version 8.2.0](https://github.com/voluptuary/ezfode-dssmm-kernel/releases/tag/v8.2.0)** incorporates upstream DS Style v7.5, optional remembered cheats, CUSTOM Only rounded corners, and additional fork fixes. The verified release artifact is tracked at `files/candidate/8.2.0/ezkernelnew.bin`. See the [changelog](CHANGELOG.md) and newest [audit handoff](KERNEL_AUDIT_HANDOFF.md) checkpoint for validation status.
 
-- [DS Style homepage](https://frankiet19.github.io/omega-de-ds-style-kernel/project/)
-- [DS Style Manager](https://frankiet19.github.io/omega-de-ds-style-kernel/manager/) - guided installation, preferences, artwork and styles
+The experimental silhouette border was removed after significant border-on slowdown was reported on hardware. Borders use the established rectangular/rounded outline; transparent artwork remains supported. Hardware responsiveness of this final rollback build has not been measured.
 
-## Features
+## What Merkin Mix changes
 
-- DS-style launcher interface
-- Multiple colour themes and light/dark presentation support
-- Customisable launcher assets through DS Style Customiser
-- List, List + Art, horizontal carousel, and vertical carousel file views
-- Title and box-art thumbnail modes
-- Favourite and recent game support
-- Multi-language launcher text, including Chinese and Thai
-- Bundled text and Markdown viewer with light and dark modes
-- Optional folder artwork for supported emulated systems
-- UI sounds
-- Smooth carousel animations enabled by default, adjustable side-preview sizes and a launch pulse
-- Optional browser wrapping and defensive save-file checks
-- Runtime settings stored in readable `SYSTEM/SETTINGS.TXT`
+- Mirrored SD-card artwork lookup for multi-system libraries, with custom and built-in thumbnail fallbacks.
+- Selective transparency in marked thumbnails, including support in animated carousel frames. Enabled artwork borders use rectangular or rounded outlines.
+- Optional **Settings → Games → Remember cheats**, off by default, with localized labels (Thai uses English). Selections save when leaving the cheat editor and reload for the same game, including launch without reopening the editor. Collapsing a group preserves its selections, clamps the cursor and clears stale rows.
+- Refreshed startup artwork and system icons, plus Merkin Mix branding.
+- Optional browser wrapping; the v8.2.0 source accepts both upstream's `Wrap list` and the earlier fork's `Wrap around` setting.
+- A `CUSTOM Only` rounded-corner mode in v8.2.0 for artwork loaded from `/SYSTEM/IMGS/CUSTOM` or `/SYSTEM/IMGS2/CUSTOM`. Art borders remain independently configurable. This mode has owner-reported hardware confirmation on the prior candidate; the final rollback build has not been hardware-tested.
+- Long-filename/path fixes, defensive save and SD I/O checks, bounded cheat parsing, NOR-operation checks, and rejection of oversized fragmented-file tables.
+- A build-time 2 MiB kernel-size limit, plus carousel alignment and wrap-transition fixes in v8.2.0.
 
-## Transparent mirrored thumbnails
+The **inherited DS Style interface** includes list, List + Art, horizontal and vertical carousel views; title and box artwork; themes; favourites and recent games; multilingual text; UI sounds; a text/Markdown viewer; and readable `/SYSTEM/SETTINGS.TXT` settings. Smooth carousel animation, adjustable side previews, and the launch pulse come from **FrankieT19's v7.5**, integrated into the 8.2.0 source.
 
-The forked DS Style Thumbnail Scraper can create mirrored thumbnails with selective transparency. Keep the `DST1` marker it writes into BMP header bytes 6–9; the launcher uses that marker to make zero-valued RGB555 pixels transparent while drawing the other pixels normally. This lets the artwork blend with the launcher background. Without the marker, the thumbnail is drawn as an ordinary opaque image.
+Host regressions and builds do not establish hardware compatibility or timing. Open audit items include failed overwrites that can lose an existing SD save, settings-file write/close failures, NOR catalog recovery, and NOR operation timing. See the [audit progress ledger](KERNEL_AUDIT_PROGRESS.md) for evidence and remaining limits.
 
-Marked thumbnails use the launcher's standard 16-bit, uncompressed, top-down BMP layout: 120 × 80 pixels for title artwork or 80 × 80 for box artwork. The marker does not provide a full alpha channel; pure black (RGB555 value `0x0000`) is transparent in a marked image, so use a nonzero near-black value where black must remain visible. The companion scraper creates the marker and pixel data together; do not remove or edit the marker when copying its mirrored thumbnails.
+Remembered selections use `/SYSTEM/CHEATSTATE/<hash>.cs2`, with full game-path identity and a cheat-content fingerprint. Changed cheat files invalidate the snapshot; legacy `CHS1`/`.cst` files are not imported. The snapshot supports up to 128 selected options, one per section; persistence is disabled for cheat files larger than 1 MiB. Failed writes are reported, but replacement is not atomic and can lose the prior snapshot.
 
-## Building
+## Artwork and documentation
 
-On Windows, install devkitPro/devkitARM and run:
+[DS Style Card Companion](https://github.com/voluptuary/dsscc) is the separate artwork/scraper companion fork. Its mirrored artwork work is on `feature/mirrored-artwork-retry-cache`; the repository's default branch may show upstream scraper history.
 
-```bat
-build.bat
+Transparent thumbnails must retain the `DST1` marker in BMP header bytes 6–9. The supported layout is an uncompressed, top-down 16-bit BMP: **120 × 80** for title artwork or **80 × 80** for box artwork. In marked images, RGB555 `0x0000` is transparent; use nonzero near-black for visible black. This is selective transparency, not a full alpha channel. Unmarked thumbnails remain opaque.
+
+The [upstream user guide](https://frankiet19.github.io/omega-de-ds-style-kernel/) covers everyday use, artwork and customisation. The [upstream Manager](https://frankiet19.github.io/omega-de-ds-style-kernel/manager/) and Customiser belong to DS Style; their kernels and style packages should not be assumed to contain Merkin Mix changes.
+
+## Build from source
+
+Use devkitPro with **devkitARM, GBA rules, libgba, Maxmod and Make**. The checked-in devcontainer uses `devkitpro/devkitarm:20260610`; rebuild the container when opening a fresh Codespace. The recorded audit toolchain is devkitARM 16.1.0.
+
+From the repository root, with the devkitPro environment loaded:
+
+```sh
+make -B && cp "$(basename "$PWD").gba" ezkernelnew.bin
 ```
 
-The build script outputs:
+`make` names its `.gba` output after the checkout directory. The `.bin` is a copy of that raw image. The Makefile rejects images over **2,097,152 bytes**; do not bypass this limit. Only copy an image after a successful build.
 
-```text
-ezkernelnew.bin
+On Windows, install devkitPro under `C:\devkitPro` and use its MSYS environment for the command above. The included `build.bat` sets those fixed paths, but its copy step expects `x.gba` (or a temporary drive-letter output for paths containing spaces). In an ordinary checkout, verify the actual directory-named `.gba` and copy it yourself; an existing `ezkernelnew.bin` is not proof that the wrapper produced a fresh build.
+
+Generated theme headers are checked in. If you change theme images, regenerate them with `Grit\Build Skin Files.bat` before building.
+
+For the broader build and regression checks, with the audit dependencies installed:
+
+```sh
+bash scripts/rebuild-and-verify-audit.sh
 ```
 
-Copy `ezkernelnew.bin` to the root of the SD card and boot the cartridge while holding **R** to update the kernel.
+The script also uses host test tools, Node and Cppcheck; consult the script for its checks. It does not publish a release or refresh the candidate directory automatically.
 
-For GitHub Codespaces, rebuild the container to install the configured devkitPro environment, then run `make` from the repository root. This builds the `.gba` target; the Windows `build.bat` workflow performs the additional copy to `ezkernelnew.bin`.
+## Credits and license
 
-## Skin Assets
+Thanks to **FrankieT19**, **exploitz86**, and **SkillerCMP** for DS Style and the related kernel contributions on which this work draws. See [CREDITS.md](CREDITS.md) for provenance and the distinction between inherited features and the 8.2.0 integration.
 
-Theme image headers are generated from the files in `images/` using:
-
-```bat
-Grit\Build Skin Files.bat
-```
-
-Run this before building if you edit the theme BMP/PNG/JPG assets.
-
-## Customising
-
-For normal users, the recommended route is **DS Style Customiser**, which creates a private project copy, edits the assets/settings, and builds the kernel without modifying this source tree directly.
-
-## Credits
-
-- Original kernel source by EZ-FLASH
-- SimpleLight custom kernel by Sterophonick
-- DS Style custom kernel by FrankieT19
-- Contributions by Merkin
-- Thai language support by aidiadayo
-- Case-sensitive `HZK12.h` include fix by Kekun
-- FatFs by ChaN, as used by the upstream kernel
-
-## License
-
-This project follows the license terms provided with the original EZ-FLASH kernel source. See `LICENSE`.
+The repository includes the [Apache License 2.0](LICENSE). Retain the individual component licenses and attribution notices.

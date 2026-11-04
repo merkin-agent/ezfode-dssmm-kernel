@@ -1,40 +1,39 @@
 # Changelog
 
-## DS Style Merkin Mix 8.1.1
+## DS Style Merkin Mix 8.2.0
 
-This build incorporates upstream v7.5 changes while retaining the fork's audited fixes.
+This build includes the v8.1.0 features and fixes, with new carousel and cheat-menu features.
 
 ### New features since v8.1.0
 
-- Added smooth carousel animations, enabled by default, with small or equal-size side previews and an option to turn animations off.
-- Added a selection pulse before directly launching from an animated carousel.
-- Completed square artwork borders in animated carousel views.
-- Refreshed the startup screen and emulated-system icons, contributed by Merkin.
+- Added FrankieT19's smooth carousel animations, enabled by default, with small or equal-size side previews and an option to turn animations off.
+- Added FrankieT19's selection pulse before directly launching from an animated carousel.
+- Added FrankieT19's completed square-corner artwork borders in animated carousel views.
+- Added a `CUSTOM Only` option to Rounded corners, which rounds only artwork from the `SYSTEM/IMGS/CUSTOM` or `SYSTEM/IMGS2/CUSTOM` folders. Art border remains independently configurable.
+- Added exploitz86's optional **Remember cheats** setting in Games, with localized labels. It is off by default and remembers selections for each game across restarts, including when launching without reopening the cheat editor.
+- Added SkillerCMP's collapsible cheat groups, adapted through exploitz86's fork. Collapsing a group preserves its selections.
 
 ### New fixes since v8.1.0
 
-- Added defensive save and real-time-save file checks so incomplete SD-card reads or writes are reported instead of being treated as successful.
-- Improved SD-card error handling, cheat-file bounds checking, and filename/path validation.
-- Preserved marked transparent artwork while rendering animated carousel frames.
-- Added support for upstream's `Wrap list` setting while continuing to read the fork's existing `Wrap around` setting.
+- Preserved marked artwork transparency during carousel animations.
+- Fixed animated carousel transitions when wrapping between the first and last titles.
+- Added exploitz86's cheat-group collapse fix so hidden cheats no longer appear at the bottom of the screen and scrolling stays within the visible list.
 
 ### Features added through v8.1.0
 
-- **v8.1.0:** Optimized the CPU-copy / DMA-copy transparency check for artwork rows. Aligned pixel pairs are scanned in batches to quickly select DMA copying for opaque rows, while CPU copying still skips transparent pixels exactly as before. The patch's proposed fallback would have scanned transparent rows a second time; this build instead checks candidate pixel pairs as it finds them, avoiding that extra pass while retaining exact `0x8000` transparency handling. Hardware testing found menu responsiveness about the same as the previous build, with a possible marginal improvement.
 - **v8.0.0:** Renamed the About-screen branding to DS Style Merkin Mix and displayed the build number.
-- **v7.4.6b:** No new user-facing features; this build focused on fixes and optimizations.
 - **v7.4.5:** Added an optional Wrap around setting for browser navigation.
-- **v7.4.3:** Added SD-card mirrored artwork lookup with custom and built-in thumbnail fallbacks, selective transparency for marked BMP thumbnails, and refreshed console icons and startup artwork.
+- **v7.4.3:** Added mirrored artwork lookup, custom and built-in thumbnail fallbacks, selective transparency for marked thumbnails, and refreshed console icons and startup artwork.
 
 ### Fixes through v8.1.0
 
-- **v8.0.0:** Prevented highly fragmented ROM and RTS files from overflowing the fixed FPGA FAT-table transfer buffer. Files whose fragment tables exceed the supported capacity are rejected instead of sending a corrupted table. The fix passed host regression tests; physical testing with a highly fragmented SD card has not been reported.
-- **v7.4.6b:** Kept the kernel image within the supported 2 MiB limit, with oversized builds failing reliably instead of leaving a stale image that could appear successful. Improved save handling so failed first-time saves do not leave incomplete files and errors checking existing saves are not mistaken for missing saves.
-- **v7.4.6b:** Improved cartridge-flash operation checks and feedback, refreshed the game list after successful formatting, avoided unnecessary cartridge-info writes, reduced NOR format progress redraw overhead while retaining full erase verification, and fixed format confirmation/progress redraws to clear the full menu row.
-- **v7.4.6b:** Fixed cheat-file parsing so values from one entry cannot carry over into the next. This feature has not been hardware-tested; please report any issues.
-- **v7.4.6b:** Restored the established settings-save polling behavior while retaining newer checks for other cartridge records, and consolidated settings readers while removing unused code. Subsequent hardware testing on v7.4.6b has not reproduced the reported settings-persistence issue.
-- **v7.4.5:** Fixed game launch with Enable BIOS off that was broken with a previous fix; improved long directory-name display, selection, save paths, and artwork lookup when folder aliases differ; reduced repeat directory scans during thumbnail browsing; and updated launcher stack/heap placement for FatFs long-filename handling.
-- **v7.4.3:** Hardened NOR catalog bounds, title sizes, source reads, block padding, metadata commits, interrupt restoration, and trim-probe arithmetic. Limited deletion to a verified newest title, fixed NOR progress redraws, hardened SD sector and save/RTS I/O checks, bounded paths and malformed cheat data, fixed PSRAM writes across 8 MiB boundaries and rejected odd-address writes, updated NOR guidance, and aligned installer regression expectations with the shipped packages.
+- **v8.1.0:** Optimized transparent-artwork drawing. Hardware testing found menu responsiveness about the same as the previous build, with a possible marginal improvement.
+- **v8.0.0:** Added checks to reject ROM and save-state files whose SD-card fragmentation exceeds the cartridge's supported limits.
+- **v7.4.6b:** Improved save-file creation and error reporting, cartridge-flash error feedback, NOR formatting progress and confirmation screens, and cheat-file parsing. Restored the established settings-save behavior; subsequent hardware testing did not reproduce the reported settings-persistence issue.
+- **v7.4.5:** Fixed launching with Enable BIOS off, improved long-filename and folder handling, and reduced repeated directory reads while browsing thumbnails.
+- **v7.4.3:** Improved NOR installation and deletion checks, SD save and save-state error handling, malformed cheat-file handling, and ROM patching across cartridge memory banks.
+
+Thanks to **FrankieT19**, **exploitz86**, and **SkillerCMP** for their contributions. See [CREDITS.md](https://github.com/voluptuary/ezfode-dssmm-kernel/blob/v8.2.0/CREDITS.md) for the project lineage and attribution.
 
 These changes and fixes were completed with the assistance of AI.
 

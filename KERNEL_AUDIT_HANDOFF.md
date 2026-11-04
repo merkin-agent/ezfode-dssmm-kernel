@@ -1,5 +1,17 @@
 # DS Style Kernel Audit — Standalone Handoff
 
+## 2026-11-04 — v8.2.0 published and remotely verified
+
+This is the authoritative publication checkpoint; the verification checkpoint immediately below describes the exact released source and artifact. Release work is complete. No hardware testing or PR merge was performed.
+
+- **Release commit:** `9211e71bd435a14bdfac1ee5af57be4675d8a719` (`Prepare Merkin Mix v8.2.0 with remembered cheats and border rollback`), pushed to `origin/release/8.2.0`. It includes the verified `files/candidate/8.2.0/ezkernelnew.bin` and all intended source, test, documentation and attribution changes.
+- **Remote tag:** annotated `v8.2.0` object `b4db3df3c80c5cdc295787f00bc12ef3eca8de8b`; `git ls-remote origin` confirms its peeled target is exactly release commit `9211e71bd435a14bdfac1ee5af57be4675d8a719`. The tag remains on that verified release commit; the publication-record follow-up changes only these two ledgers.
+- **Published release:** [EZFODE DS Style Merkin Mix Kernel - v8.2.0](https://github.com/voluptuary/ezfode-dssmm-kernel/releases/tag/v8.2.0), published **2026-11-04 02:38:48 UTC**. GitHub reports `isDraft=false`, `isPrerelease=false`; querying the latest release returns `v8.2.0`. Release target metadata also names the exact release commit.
+- **Asset verification:** downloaded the published `ezkernelnew.bin` from that release and compared it byte-for-byte with the tracked candidate: identical, **2,064,280 bytes**, SHA-256 **`72201320f0e8fc7c332a715704fc11a8c1ad33e8400661d09bb45c411ac3d8fa`**. About text is `DS Style Merkin Mix 8.2.0`. Local download: `/tmp/release820-download/ezkernelnew.bin` (temporary, not required for future verification).
+- **PR:** [#1 — Release DS Style Merkin Mix v8.2.0](https://github.com/voluptuary/ezfode-dssmm-kernel/pull/1), `release/8.2.0` → `main`, verified OPEN. The user authorized publication while the PR remains open; `main` was not merged or changed.
+- **Validation evidence:** forced build, all 17 host suites and full audit passed as recorded below. Temporary logs are `/tmp/release820-build.log`, `/tmp/release820-host.log`, `/tmp/release820-audit.log`; these may not survive a new environment. The final rollback binary remains **not hardware-tested** and the recorded open audit findings remain open.
+- **Next work:** owner hardware validation or the separately scoped audit may resume from the findings below. Do not rebuild/retag/republish v8.2.0 as part of routine continuation; the published artifact is the verified checkpoint.
+
 ## 2026-11-04 — Authoritative v8.2.0 release verification
 
 This checkpoint supersedes all older candidate, contour-feature, pending-hardware-gate and uncommitted-state instructions below. Those entries are historical. The owner authorized rollback of the expensive silhouette border and publication of stable/latest v8.2.0 to `voluptuary/ezfode-dssmm-kernel`, with a PR to `main` that may remain open; no merge or additional approval is required.

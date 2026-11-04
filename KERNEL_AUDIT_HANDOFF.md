@@ -1,5 +1,19 @@
 # DS Style Kernel Audit — Standalone Handoff
 
+## 2026-11-04 — Carousel manifest implementation and focused evidence
+
+- Owner clarified the symptom: **gradual slowdown as folder size grows**, becoming noticeable around 60 titles; this is not a hard threshold or threshold-bug claim. This clarification supersedes older shorthand about >60.
+- Both review reports are complete. Chosen narrow change sorts the existing per-style CUSTOM hash manifest in place after collection and binary-searches it. No allocation, recursion, persistent RAM growth, identity resolver, file-open order, cache layout, rendering, DMA or IRQ changes. The same first 256 entries and duplicate/collision membership remain; partial/error collection semantics are preserved. About identifies the exploratory build as `8.2.0-exp1`.
+- Focused `test-custom-manifest-host.sh` PASS: 169,620 differential membership queries, counts 0..256, full-width/duplicate hashes and guard canaries; extracted production collector tests cap, style isolation, warm reuse, missing directory, empty directory and partial read. For 120 misses at M=256, linear probes 30,720 -> binary probes 960; reverse-order cold sorting adds 2,562 comparisons. This is CPU operation evidence, not hardware timing or a cure for directory scaling.
+- `test-carousel-lookup-scaling-host.sh` PASS with real temporary instrumented FatFs: N=30/60/90/120/240 late ordinary LFN opens require 121/242/363/484/965 dir_next calls; missing opens 132/253/374/495/976. Fixture also has one clipped LFN. Parent slots are included; these are not disk reads. Complete indexed names still skip explicit resolution; clipped fallback enumerates N+1 returned entries. Its resolver callback remains the existing host model, not extracted firmware.
+- Checkpointing source/tests/reports now with **full validation pending**. Forced `make -B` has passed at 2,064,384 bytes; next inspect ARM linked footprint/disassembly, then run all 19 host suites and full audit once final. Persist output and candidate identity separately from stable v8.2.0. No measured hardware speedup claimed.
+
+## 2026-11-04 — Carousel integration investigation checkpoint
+
+- Integration starts from `7cd9200` on exploratory, preserving owner README commits. Reviews are active in `files/CAROUSEL_PERFORMANCE_REVIEW.md` and `files/CAROUSEL_RENDER_REVIEW.md`; implementation selection waits for their completed findings.
+- Confirmed baseline already bypasses indexed-name resolution for complete names. Clipped identities still require ambiguity-checked full enumeration; FatFs file opens also search directories. Rendering uses a fixed number of images, with no demonstrated 60-entry threshold.
+- Evaluating bounded CUSTOM manifest membership lookup as a narrow improvement; any claim must distinguish that CPU work from remaining file-open costs. The chosen scope excludes new negative caches, early-exit identity resolution, shared scratch expansion, and timer/IRQ changes. Next: finish reviews, add operation-count/differential evidence, build separately from v8.2.0, run all suites and full audit, record candidate and push.
+
 ## 2026-11-04 — Carousel investigation resumed after usage pause
 
 - Reconciled clean local exploratory with remote and fast-forwarded two owner README edits (`fb26fb0`, `7f1a04d`); preserve these edits. Release v8.2.0 and merged PR #1 are complete. The border rollback is owner-confirmed successful.

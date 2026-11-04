@@ -6017,6 +6017,39 @@ static void Launcher_CustomThumbStripLine(char *line)
 	}
 }
 
+/* Sort once in place; keep the same bounded hash set and exact-path opens. */
+static void Launcher_SortCustomThumbManifest(u32 *hashes, u32 count)
+{
+	u32 gap, i, j, value;
+	for(gap = count / 2; gap; gap /= 2)
+	{
+		for(i = gap; i < count; i++)
+		{
+			value = hashes[i];
+			for(j = i; j >= gap && hashes[j - gap] > value; j -= gap)
+				hashes[j] = hashes[j - gap];
+			hashes[j] = value;
+		}
+	}
+}
+
+static u32 Launcher_CustomThumbManifestContains(const u32 *hashes, u32 count, u32 hash)
+{
+	u32 low = 0;
+	u32 high = count;
+	while(low < high)
+	{
+		u32 mid = low + (high - low) / 2;
+		if(hashes[mid] == hash)
+			return 1;
+		if(hashes[mid] < hash)
+			low = mid + 1;
+		else
+			high = mid;
+	}
+	return 0;
+}
+
 static void __attribute__((noinline)) Launcher_LoadCustomThumbManifest(u32 style)
 {
 	u32 hash;
@@ -6054,13 +6087,14 @@ static void __attribute__((noinline)) Launcher_LoadCustomThumbManifest(u32 style
 			launcher_custom_thumb_manifest_hash[style][launcher_custom_thumb_manifest_count[style]++] = hash;
 	}
 	f_closedir(&launcher_custom_thumb_scan_dir);
+	Launcher_SortCustomThumbManifest(launcher_custom_thumb_manifest_hash[style],
+		launcher_custom_thumb_manifest_count[style]);
 }
 
 static u32 Launcher_ShouldTryCustomThumbnail(const char *name)
 {
 	u32 style = launcher_thumbnail_style;
 	u32 hash;
-	u32 i;
 
 	if(style > LAUNCHER_THUMB_STYLE_BOX)
 		style = LAUNCHER_THUMB_STYLE_TITLE;
@@ -6070,12 +6104,8 @@ static u32 Launcher_ShouldTryCustomThumbnail(const char *name)
 	if(!launcher_custom_thumb_manifest_present[style])
 		return 0;
 	hash = Launcher_CustomThumbHash(name);
-	for(i = 0; i < launcher_custom_thumb_manifest_count[style]; i++)
-	{
-		if(launcher_custom_thumb_manifest_hash[style][i] == hash)
-			return 1;
-	}
-	return 0;
+	return Launcher_CustomThumbManifestContains(launcher_custom_thumb_manifest_hash[style],
+		launcher_custom_thumb_manifest_count[style], hash);
 }
 
 static u16 Launcher_ListArtRawInput(void)

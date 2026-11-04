@@ -1,5 +1,12 @@
 # DS Style Kernel Audit Progress
 
+## 2026-11-04 — Carousel investigation resumed after usage pause
+
+- Reconciled clean local exploratory with remote and fast-forwarded two owner README edits (`fb26fb0`, `7f1a04d`); preserve these edits. Release v8.2.0 and merged PR #1 are complete. The border rollback is owner-confirmed successful.
+- Active task: investigate folder-size-dependent carousel browsing slowdown above roughly 60 entries. Parallel read-only reviews cover indexed-name/artwork I/O and rendering/cache/input work. Findings are being stored in `files/CAROUSEL_PERFORMANCE_REVIEW.md` and `files/CAROUSEL_RENDER_REVIEW.md`; absent files mean that review has not completed, not that no issue exists.
+- Recovery: inspect current Git status and these review files, reconcile partial changes before rerunning checks, and continue the exact investigation steps below. Record each verified finding and validation result before changing subsystems. Keep reproducible scripts/results and candidate identity in the repository; temporary logs alone are not a checkpoint. Commit and push meaningful validated milestones to exploratory; do not publish a new stable release for this investigation.
+- No performance cause or speedup has been established yet. Existing hardware and memory constraints remain in force. This checkpoint introduces no firmware change.
+
 ## 2026-11-04 — Release branch merged and removed
 
 - At the owner's request, PR #1 (`release/8.2.0` → `main`) was merged with merge commit `a34aea5`. Local `main` now tracks the updated `origin/main`.

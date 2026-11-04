@@ -1,5 +1,12 @@
 # DS Style Kernel Audit Progress
 
+## 2026-11-04 — Release-note scope and attribution correction
+
+- Owner edited the live v8.2.0 notes and requested user-facing changes only, no added-then-removed experiments, and no earlier Merkin Mix fixes relabeled as new after upstream reintegration. Start future edits from the live release body, preserving owner changes.
+- Revised v8.2.0 notes and matching CHANGELOG: retain genuinely new carousel/CUSTOM Only/remembered-cheat/collapse behavior; remove experimental contour rollback, implementation mechanics and test/artifact inventories from public notes. Older save/SD/cheat-parser/path fixes stay in the cumulative historical section. `git diff v8.1.0 v8.2.0` shows no changes in Ezcard_OP.c, NORflash_OP.c, GBApatch.c or ff15; prior release notes already document the broad safety claims.
+- Future style: follow the existing new-features/new-fixes and cumulative-history headings. Credit the contributor directly in the relevant bullet (e.g. "Added FrankieT19's ...", "Added exploitz86's ..."), credit SkillerCMP for the group-menu foundation, and describe user-visible outcomes in plain language. Keep audit evidence, limitations, rejected approaches and internals in these ledgers/reviews. Compare against the previous Merkin Mix release, not solely an upstream changelog.
+- Documentation-only correction; release binary/tag unchanged. Local whitespace check passes. Updated live v8.2.0 release body and verified it matches the revised text; changelog synchronized.
+
 ## 2026-11-04 — v8.2.0 published and remotely verified
 
 This is the authoritative publication checkpoint; the verification checkpoint immediately below describes the exact released source and artifact. Release work is complete. No hardware testing or PR merge was performed.

@@ -1,5 +1,11 @@
 # DS Style Kernel Audit — Standalone Handoff
 
+## 2026-11-04 — Release branch merged and removed
+
+- At the owner's request, PR #1 (`release/8.2.0` → `main`) was merged with merge commit `a34aea5`. Local `main` now tracks the updated `origin/main`.
+- Deleted the remote and local `release/8.2.0` branch after the merge. The v8.2.0 release/tag remains intact.
+- Active development remains on `exploratory`. Its carousel-performance checkpoint is preserved; the next investigation and successful border-rollback hardware feedback below still apply. Earlier entries describing PR #1 as open are historical.
+
 ## 2026-11-04 — Current handoff: exploratory carousel-performance investigation
 
 This is the current continuation priority and supersedes older branch, hardware-pending and next-task statements below.

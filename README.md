@@ -9,10 +9,6 @@ A custom kernel for the **EZ-FLASH OMEGA Definitive Edition**, maintained by Mer
 
 Download `ezkernelnew.bin` from [Merkin Mix releases](https://github.com/voluptuary/ezfode-dssmm-kernel/releases). Copy it to the SD-card root, then boot the cartridge while holding **R** to update the kernel. Back up saves before updating.
 
-**[Version 8.2.0](https://github.com/voluptuary/ezfode-dssmm-kernel/releases/tag/v8.2.0)** incorporates upstream DS Style v7.5, optional remembered cheats, CUSTOM Only rounded corners, and additional fork fixes. The verified release artifact is tracked at `files/candidate/8.2.0/ezkernelnew.bin`. See the [changelog](CHANGELOG.md) and newest [audit handoff](KERNEL_AUDIT_HANDOFF.md) checkpoint for validation status.
-
-The experimental silhouette border was removed after significant border-on slowdown was reported on hardware. Borders use the established rectangular/rounded outline; transparent artwork remains supported. Hardware responsiveness of this final rollback build has not been measured.
-
 ## What Merkin Mix changes
 
 - Mirrored SD-card artwork lookup for multi-system libraries, with custom and built-in thumbnail fallbacks.
@@ -32,7 +28,7 @@ Remembered selections use `/SYSTEM/CHEATSTATE/<hash>.cs2`, with full game-path i
 
 ## Artwork and documentation
 
-[DS Style Card Companion](https://github.com/voluptuary/dsscc) is the separate artwork/scraper companion fork. Its mirrored artwork work is on `feature/mirrored-artwork-retry-cache`; the repository's default branch may show upstream scraper history.
+[DS Style Card Companion](https://github.com/voluptuary/dsscc) is the separate artwork/scraper companion fork.
 
 Transparent thumbnails must retain the `DST1` marker in BMP header bytes 6–9. The supported layout is an uncompressed, top-down 16-bit BMP: **120 × 80** for title artwork or **80 × 80** for box artwork. In marked images, RGB555 `0x0000` is transparent; use nonzero near-black for visible black. This is selective transparency, not a full alpha channel. Unmarked thumbnails remain opaque.
 
@@ -64,6 +60,4 @@ The script also uses host test tools, Node and Cppcheck; consult the script for 
 
 ## Credits and license
 
-Thanks to **FrankieT19**, **exploitz86**, and **SkillerCMP** for DS Style and the related kernel contributions on which this work draws. See [CREDITS.md](CREDITS.md) for provenance and the distinction between inherited features and the 8.2.0 integration.
-
-The repository includes the [Apache License 2.0](LICENSE). Retain the individual component licenses and attribution notices.
+Thanks to **Sterophonick**, **FrankieT19**, **exploitz86**, and **SkillerCMP** for DS Style and the related kernel contributions on which this work draws. See [CREDITS.md](CREDITS.md) for provenance and the distinction between inherited features and the 8.2.0 integration.

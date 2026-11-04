@@ -69,6 +69,18 @@ scripts/test-fat-table-builder-host.sh
 printf '\nRunning launcher artwork drawing regression test...\n'
 scripts/test-launcher-artwork-draw-host.sh
 
+printf '\nRunning CUSTOM Only artwork style policy regression test...\n'
+scripts/test-launcher-art-style-policy-host.sh
+
+printf '\nRunning carousel memory and redraw regression test...\n'
+bash scripts/test-carousel-motion-host.sh
+
+printf '\nRunning artwork border rollback regression test...\n'
+bash scripts/test-launcher-art-border-host.sh
+
+printf '\nRunning remembered cheat state and collapsed-menu regression test...\n'
+bash scripts/test-cheat-state-host.sh
+
 printf '\nRunning browser installer regression scenarios...\n'
 node tests/browser-installer.mjs
 

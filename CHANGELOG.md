@@ -1,26 +1,42 @@
 # Changelog
 
-## DS Style Merkin Mix 8.1.1
+## DS Style Merkin Mix 8.2.0
 
-This build incorporates upstream v7.5 changes while retaining the fork's audited fixes.
+This release incorporates upstream v7.5 changes while retaining the fork's audited fixes.
 
 ### New features since v8.1.0
 
 - Added smooth carousel animations, enabled by default, with small or equal-size side previews and an option to turn animations off.
 - Added a selection pulse before directly launching from an animated carousel.
 - Completed square artwork borders in animated carousel views.
+- Added a `CUSTOM Only` option to Rounded corners. It rounds only artwork loaded from the `/SYSTEM/IMGS/CUSTOM` or `/SYSTEM/IMGS2/CUSTOM` folder; Art border remains independently available for all artwork.
+- Added optional localized **Remember cheats** in Games settings, off by default, adapted from exploitz86. Selections persist per game and can load without reopening the editor; Thai retains the source translation’s English fallback.
 - Refreshed the startup screen and emulated-system icons, contributed by Merkin.
 
 ### New fixes since v8.1.0
 
+- Removed the experimental silhouette contour after significant border-on slowdown was reported on hardware. Restored the established rectangular/rounded borders in static and animated views while retaining transparent artwork and CUSTOM Only corners. No hardware timing claim is made for this rollback build.
 - Added defensive save and real-time-save file checks so incomplete SD-card reads or writes are reported instead of being treated as successful.
 - Improved SD-card error handling, cheat-file bounds checking, and filename/path validation.
 - Preserved marked transparent artwork while rendering animated carousel frames.
 - Added support for upstream's `Wrap list` setting while continuing to read the fork's existing `Wrap around` setting.
+- Fixed animated carousel scrolling at the wrap boundary so moving between the last and first titles uses the normal transition.
+- Fixed animated carousel artwork corruption caused by unaligned 32-bit motion-state pointers.
+- Added collapsible cheat groups with preserved selections, viewport clamping and clearing of all ten display rows, adapting the Skiller menu foundation and exploitz86 collapse fixes.
+- Corrected duplicate/misplaced Remember cheats keys in the root translation catalog; both JSON catalogs now validate without duplicate keys and contain identical language data.
+- Corrected the carousel code-copy size guard and integer relocation offsets; stationary carousel redraw reuses its three prepared images.
+- Bounded remembered selections to 128 options and validated full game identity, cheat contents, checksum and indices before applying a snapshot. Checked state-file reads, writes and closes, and protected shared artwork/audio workspace ownership during cheat parsing.
+
+### Release validation — 4 November 2026
+
+Validation results and the exact artifact digest are recorded in both audit ledgers. Owner hardware confirmation applies to the prior CUSTOM Only candidate; final rollback responsiveness, remembered cheats and the latest motion changes remain unverified on hardware.
+
+Thanks to **FrankieT19** for DS Style v7.5 and carousel features, **exploitz86** for remembered cheats, localization and collapse fixes, and **SkillerCMP** for the collapsible-menu foundation. See [CREDITS.md](CREDITS.md) for exact provenance and other contributors. The complete Skiller cheat engine, RTS format and external patch system are not imported.
+
+Remembered state uses `CHS2` `.cs2` files, does not import `CHS1`, and requires unchanged cheat contents no larger than 1 MiB. Snapshot replacement is not atomic; failed writes can lose the previous snapshot. Existing F-011/F-022/F-032/F-036 remain open. The full Skiller engine is not part of this integration.
 
 ### Features added through v8.1.0
 
-- **v8.1.0:** Optimized the CPU-copy / DMA-copy transparency check for artwork rows. Aligned pixel pairs are scanned in batches to quickly select DMA copying for opaque rows, while CPU copying still skips transparent pixels exactly as before. The patch's proposed fallback would have scanned transparent rows a second time; this build instead checks candidate pixel pairs as it finds them, avoiding that extra pass while retaining exact `0x8000` transparency handling. Hardware testing found menu responsiveness about the same as the previous build, with a possible marginal improvement.
 - **v8.0.0:** Renamed the About-screen branding to DS Style Merkin Mix and displayed the build number.
 - **v7.4.6b:** No new user-facing features; this build focused on fixes and optimizations.
 - **v7.4.5:** Added an optional Wrap around setting for browser navigation.
@@ -28,6 +44,7 @@ This build incorporates upstream v7.5 changes while retaining the fork's audited
 
 ### Fixes through v8.1.0
 
+- **v8.1.0:** Optimized the CPU-copy / DMA-copy transparency check for artwork rows. Aligned pixel pairs are scanned in batches to quickly select DMA copying for opaque rows, while CPU copying still skips transparent pixels exactly as before. The patch's proposed fallback would have scanned transparent rows a second time; this build instead checks candidate pixel pairs as it finds them, avoiding that extra pass while retaining exact `0x8000` transparency handling. Hardware testing found menu responsiveness about the same as the previous build, with a possible marginal improvement.
 - **v8.0.0:** Prevented highly fragmented ROM and RTS files from overflowing the fixed FPGA FAT-table transfer buffer. Files whose fragment tables exceed the supported capacity are rejected instead of sending a corrupted table. The fix passed host regression tests; physical testing with a highly fragmented SD card has not been reported.
 - **v7.4.6b:** Kept the kernel image within the supported 2 MiB limit, with oversized builds failing reliably instead of leaving a stale image that could appear successful. Improved save handling so failed first-time saves do not leave incomplete files and errors checking existing saves are not mistaken for missing saves.
 - **v7.4.6b:** Improved cartridge-flash operation checks and feedback, refreshed the game list after successful formatting, avoided unnecessary cartridge-info writes, reduced NOR format progress redraw overhead while retaining full erase verification, and fixed format confirmation/progress redraws to clear the full menu row.

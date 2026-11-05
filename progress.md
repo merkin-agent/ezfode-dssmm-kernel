@@ -1,5 +1,13 @@
 # DS Style Kernel Audit Progress
 
+## 2026-11-05 — rc3 follow-up fixes released and upstream PR updated
+
+- Completed the requested follow-up UI fixes on `main`: Clean list Off now preserves extensions and bracketed text in horizontal and vertical browser titles, while On still cleans them; “Using DS Style” now spans 13 complete nine-line pages with each section heading at the top; LED setting values align after widening the label field from 11 to 12 characters.
+- Clean list fix includes a focused host regression for Off/On title formatting and asserts all three modern browser title renderers use the setting-aware helper. The help-page array was checked for 13 full pages and page-aligned headings.
+- Forced production build with devkitARM 16.1.0 and `scripts/rebuild-and-verify-audit.sh` passed, including host regressions and Cppcheck. Firmware `files/candidate/8.3.0-rc3/ezkernelnew.bin` is 2,009,824 bytes (87,328 bytes below the 2 MiB limit), About version `8.3.0-rc3`, SHA-256 `e27a53d4ec85a3d0c268177b67a7fdf6aefa81191dad6c7e0003e02c982b9bf4`.
+- Commit `d6a10b8` (`Fix browser titles and align help pages`) and annotated tag `v8.3.0-rc3` were pushed to `origin/main`. The exploratory prerelease is published at https://github.com/merkin-agent/ezfode-dssmm-kernel/releases/tag/v8.3.0-rc3 with `ezkernelnew.bin` and `ezfode-dssmm-kernel-8.3.0-rc3-source.zip`. Both downloaded assets matched local SHA-256; source ZIP integrity passed. Firmware hash as above; source ZIP is 20,333,255 bytes, SHA-256 `cdf650ab0f4b1e556ce59f723fb592e24b6284ecc6b3d6c05e5c7bd70027c9b9`.
+- Upstream PR #2 remains open at https://github.com/voluptuary/ezfode-dssmm-kernel/pull/2. Its head advanced to the rc3 code commit; this separate documentation-only commit also advances its head. The PR title/body still mention rc1 because the GitHub integration denied metadata edits (403). No physical-hardware or emulator validation was performed; stable v8.2.0 remains unchanged.
+
 ## 2026-11-05 — UI integration complete, exploratory candidate validated
 
 - Finished the selective FrankieT19 v8 UI integration already checkpointed on `exploratory`. Preserved the optional Clean list and Remember cheats settings, the existing Start-screen option, and other local protections.

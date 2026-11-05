@@ -202,7 +202,7 @@ This checkpoint supersedes pending-feature, provenance and candidate-size statem
 
 - The GitHub repository was renamed from `voluptuary/omega-de-ds-style-multisystem-kernel` to `voluptuary/ezfode-dssmm-kernel`; its URL is now `https://github.com/voluptuary/ezfode-dssmm-kernel`.
 - Updated local `origin` to the new URL and verified `git fetch origin --prune`; the active `copilot` branch and `v7.4.6b` tag resolve on the renamed repository. The upstream remote remains `FrankieT19/omega-de-ds-style-kernel`.
-- Renamed `CODEX_KERNEL_AUDIT_HANDOFF.md` to `KERNEL_AUDIT_HANDOFF.md` and `CODEX_KERNEL_AUDIT_PROGRESS.md` to `KERNEL_AUDIT_PROGRESS.md`; references were updated in audit instructions, supporting notes, and validation scripts.
+- Renamed `CODEX_handoff.md` to `handoff.md` and `CODEX_progress.md` to `progress.md`; references were updated in audit instructions, supporting notes, and validation scripts.
 - The Codespaces workspace path remains `/workspaces/omega-de-ds-style-multisystem-kernel`; no working-tree source or firmware behavior changed for the repository rename.
 - Current release state: commit `4c7c5e8` is on `copilot`, and release `v7.4.6b` is published at `https://github.com/voluptuary/ezfode-dssmm-kernel/releases/tag/v7.4.6b`.
 
@@ -689,7 +689,7 @@ This checkpoint supersedes pending-feature, provenance and candidate-size statem
 ## 2026-10-16 23:36 UTC — Audit checkpoint pushed to main
 
 - **Operation/result:** committed the two audit ledgers and the F-032 host characterization as `33dcdffb151dadbf0e0c7345aa075dba43cc01e4` (`Document S98 020 NOR compatibility risk`) on `main`; pushed normally to `origin/main`. `git ls-remote` confirms `origin/main=33dcdffb151dadbf0e0c7345aa075dba43cc01e4`. The original `feature/mirrored-artwork` remains at `27c26631667182c2a264c5b3d1371ba5e4fbfa75` as a retained reference. GitHub's default remains `main`.
-- **Included paths:** `KERNEL_AUDIT_HANDOFF.md`, `KERNEL_AUDIT_PROGRESS.md`, and `tests/nor-catalog-recovery-host.c`. No firmware source changed. All `files/` content was excluded and preserved.
+- **Included paths:** `handoff.md`, `progress.md`, and `tests/nor-catalog-recovery-host.c`. No firmware source changed. All `files/` content was excluded and preserved.
 - **Final local state:** local `main` tracks `origin/main` at `33dcdff`; working tree has no tracked/staged modifications, only user-owned untracked `files/`. Branch `feature/mirrored-artwork` remains locally available and tracks its remote at `27c2663`.
 - **Validation:** `sh scripts/test-nor-flash-status-host.sh`, `sh scripts/test-nor-catalog-recovery-host.sh`, and staged `git diff --check` passed before commit. Remote refs were queried after push. No physical cartridge/flash test occurred.
 - **Next:** continue F-022/F-037 with exact S98 `020` part identification and page/erase/PPB mapping; keep the finding conditional and do not enable `0x220C` until device topology is verified. Then resume the unbounded status-poll review. Preserve `files/`.
@@ -1398,7 +1398,7 @@ This checkpoint supersedes pending-feature, provenance and candidate-size statem
 - **Objective:** reconcile the handoff's actionable status against the newer journal and live repository before continuing NOR evidence gathering.
 - **Discrepancy found:** the older `Current audit phase status` and `Exact next actions` sections still called F-009 open and instructed a new alias implementation, despite the newer 00:52/01:05 progress entries documenting the F-009 fixes, host regression, target build, manual save-import review, and push. Those older sections also described F-026 as a worktree-only change although its stack relocation had since been committed/pushed. The dated history was retained; only the current summary/actions were replaced.
 - **Correction:** handoff now marks F-009 complete and pushed, distinguishes open F-011 startup analysis from the user's low-priority settings preference, records F-022 as the active Medium finding, and updates the exact continuation steps. The current F-022 note preserves the verified correction that IME-only `VBlankIntrWait` deadlock is disproved and the distinct logical `0x080`/`0x088`/`0x090` windows do not prove physical chip independence.
-- **Live state:** branch `feature/mirrored-artwork`; `HEAD` and `origin/feature/mirrored-artwork` both `9822865e6ef82b99754e7eeba7f8dded5653fe71` before this documentation edit. Only `KERNEL_AUDIT_HANDOFF.md` is modified; three user-owned files under `files/` remain untracked and untouched. No firmware or build artifact changed.
+- **Live state:** branch `feature/mirrored-artwork`; `HEAD` and `origin/feature/mirrored-artwork` both `9822865e6ef82b99754e7eeba7f8dded5653fe71` before this documentation edit. Only `handoff.md` is modified; three user-owned files under `files/` remain untracked and untouched. No firmware or build artifact changed.
 - **Validation:** no tests/build needed for this handoff-only correction; run `git diff --check` before committing. The previous F-009 build/test evidence remains in its dated entries.
 - **Next:** attempt to inspect the official Omega DE PDF in `ez-flash/omega-de-kernel` for hardware decode/chip model/ID mapping, then compare with current address and ID dispatch. Do not stage user files or make production NOR changes from guessed status/timing assumptions.
 
@@ -1880,7 +1880,7 @@ This summary is for a future Codex or independent auditing agent starting with n
 
 ### Cold-start procedure
 
-1. Read `KERNEL_AUDIT_HANDOFF.md`, this authoritative section, then the detailed findings and validation history below. Historical entries are not live-state instructions.
+1. Read `handoff.md`, this authoritative section, then the detailed findings and validation history below. Historical entries are not live-state instructions.
 2. Independently inspect repository instructions (`rg --files -g AGENTS.md`), `pwd`, `git status --short --branch --untracked-files=all`, `git rev-parse HEAD`, branch/upstream, recent log, `.devcontainer/`, `README.md`, `Makefile`, `build.bat`, `source/`, tests, workflows, docs, and all tracked files. Do not assume the branch or permissions are unchanged.
 3. Establish architecture and call/data flow before judging code. Inventory every firmware module and map startup/interrupts, UI state, SD/FatFs boundaries, settings/save/RTS persistence, NOR/SRAM/PSRAM, patch and reset assembly, artwork/render paths, localization/audio, build/assets, manager JS/tests/CI, and user docs. Follow callers and error exits.
 4. Keep findings evidence-based: assign stable IDs; include severity, confidence, exact locations, trigger, consequence, data/control path, fix, and validation limits. Distinguish defects from false positives and limitations. Review positive, negative, short-I/O, overflow, malformed-input, cleanup, retry, and interrupted-operation paths. Do a separate adversarial review after edits.
@@ -1892,7 +1892,7 @@ This summary is for a future Codex or independent auditing agent starting with n
 - If the devcontainer changed or an existing Codespace lacks the toolchain, rebuild/reopen it. `scripts/rebuild-and-verify-audit.sh` detects missing devkitARM and can request `gh codespace rebuild` when `CODESPACE_NAME` and authenticated `gh` are available. Verify current tree preservation before triggering a rebuild and resume in a new terminal afterward.
 - Confirm the environment without exposing secrets: `printf '%s\n' "$DEVKITPRO" "$DEVKITARM"`; `"$DEVKITARM/bin/arm-none-eabi-gcc" --version`; confirm `"$DEVKITARM/gba_rules"` exists. Previously verified toolchain: devkitARM GCC 16.1.0 and GBA rules at `/opt/devkitpro/devkitARM/gba_rules`.
 - Run `make`, not `make clean`. Linux/Codespaces produces `omega-de-ds-style-multisystem-kernel.gba`. Cartridge packaging name is `ezkernelnew.bin`; Windows `build.bat` copies the successful `.gba` output to that name. The v7.4.1 `.bin` was verified byte-identical.
-- Run `scripts/rebuild-and-verify-audit.sh` for build, browser installer scenarios, manager-JS syntax checks, whitespace and optional Cppcheck. It does not clean, stage, commit, or push. It requires `KERNEL_AUDIT_PROGRESS.md` to exist. Theme/image generation through Grit/PowerShell remains unverified in Linux.
+- Run `scripts/rebuild-and-verify-audit.sh` for build, browser installer scenarios, manager-JS syntax checks, whitespace and optional Cppcheck. It does not clean, stage, commit, or push. It requires `progress.md` to exist. Theme/image generation through Grit/PowerShell remains unverified in Linux.
 - Previous rebuilt Codespace had Make 4.3, Node 24.21.0, Cppcheck 2.13.0, `gh` 2.23.0, git-lfs 3.3.0, and Poppler. Ad hoc tools may be absent after a new rebuild. `scripts/install-devkitpro.sh` was removed: it was unreferenced, duplicated the devcontainer image, and its package-bootstrap endpoint returned HTTP 403. Do not restore it without a new need.
 
 ### Audit completion map and next work
@@ -1989,8 +1989,8 @@ Entries below record what was known at each stage. Do not use older branch hashe
 
 ## Files changed by this audit
 
-- `KERNEL_AUDIT_PROGRESS.md`: durable continuation ledger required by the audit request. The user explicitly requested that both audit ledgers remain tracked on the development branch; update them with source changes, but do not include them in firmware release assets.
-- `KERNEL_AUDIT_HANDOFF.md`: user-requested standalone handoff for a fresh Codex/Codespace with no conversation history. The ledgers were originally local, then the user explicitly requested committing/pushing them so they survive Codespace deletion; current authoritative handling is stated at the top of this file.
+- `progress.md`: durable continuation ledger required by the audit request. The user explicitly requested that both audit ledgers remain tracked on the development branch; update them with source changes, but do not include them in firmware release assets.
+- `handoff.md`: user-requested standalone handoff for a fresh Codex/Codespace with no conversation history. The ledgers were originally local, then the user explicitly requested committing/pushing them so they survive Codespace deletion; current authoritative handling is stated at the top of this file.
 - `tests/browser-installer.mjs`: corrected four bundled style filename assertions from `v7.3` to the manifest/package version `v7.4` so the existing installer scenarios test the current delivered files.
 - `source/Ezcard_OP.c`: prevent stale sector copy and false-success status after both read attempts time out; disable the SD interface on both read and write error exits; bound `Read_NOR_info` by its halfword destination size.
 - `source/NORflash_OP.c`: validate NOR catalog bounds and persisted block sizes, preserve interrupt state on all scan exits, and check exact SD reads before NOR erase/program operations; delay metadata commit until source I/O completes.
@@ -2089,12 +2089,12 @@ Entries below record what was known at each stage. Do not use older branch hashe
   `cppcheck --enable=warning,performance,portability --suppress=missingIncludeSystem --inline-suppr --template=gcc --max-configs=1 source/*.c`
   This analyzed 11 top-level firmware C files, excluding `source/ff15`. It found only existing GNU memory-mapped `void *` arithmetic warnings in `Ezcard_OP.c`, `GBApatch.c`, and `ezkernelnew.c`, plus `toomanyconfigs` because the pass limited analysis to one configuration. No additional diagnostics. Targeted Cppcheck/build for `F-010` remain clean as previously recorded.
 - `F-011` feasibility recheck: `FF_USE_MKFS=0`, `FF_FS_READONLY=0`, GCC is available, but at that point no `mkfs.fat`, `mformat`, or `mcopy` tool was installed. The normal disk driver touches cartridge hardware. A host fault-injection harness has not yet been proven practical. Do not change settings recovery until this is investigated or sufficient validation exists.
-- Created `KERNEL_AUDIT_HANDOFF.md`, a standalone continuation file with the objective/constraints, current state, exact setup and verified toolchain, findings, validation, user release authorization, approval/push context, and precise next actions. A fresh Codex must read it first, then this detailed progress ledger, then inspect live Git state.
+- Created `handoff.md`, a standalone continuation file with the objective/constraints, current state, exact setup and verified toolchain, findings, validation, user release authorization, approval/push context, and precise next actions. A fresh Codex must read it first, then this detailed progress ledger, then inspect live Git state.
 - Historical next action (since completed): reconcile Git state, continue the audit, align firmware/changelog version, and publish v7.4.1. Current continuation is specified in the authoritative checkpoint at the top of this file.
 
 ## Resume update — new Codex session reconciliation
 
-- Read `KERNEL_AUDIT_HANDOFF.md` first, then this progress file, before making changes.
+- Read `handoff.md` first, then this progress file, before making changes.
 - Live reconciliation on this session: branch `feature/mirrored-artwork`; HEAD `63ee36690e2d81280ff528fb1a9471a63843a999`; status `## feature/mirrored-artwork...origin/feature/mirrored-artwork`; no staged changes. The live tracked modifications and untracked audit/setup files match the prior ledger. No new user edits were observed.
 - The handoff exists at the repository root and contains the standalone objective, operating constraints, Codespace/devkitPro setup and verification, current findings, release authorization, and ordered resume steps. It directs a fresh agent to read this detailed ledger next and reconcile Git before editing.
 - The first incomplete technical item remains `F-011`: determine whether a small host-side FatFs test can demonstrate safe recovery from failed/truncated unified settings writes. Do not change the persistent write flow until recovery semantics and fault-path verification are adequate. UI/documentation review, version alignment, build/review, and authorized publication are now complete.

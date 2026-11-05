@@ -22,7 +22,7 @@ Download `ezkernelnew.bin` from [Merkin Mix releases](https://github.com/voluptu
 
 The **inherited DS Style interface** includes list, List + Art, horizontal and vertical carousel views; title and box artwork; themes; favourites and recent games; multilingual text; UI sounds; a text/Markdown viewer; and readable `/SYSTEM/SETTINGS.TXT` settings. Smooth carousel animation, adjustable side previews, and the launch pulse come from **FrankieT19's v7.5**, integrated into the 8.2.0 source.
 
-Host regressions and builds do not establish hardware compatibility or timing. Open audit items include failed overwrites that can lose an existing SD save, settings-file write/close failures, NOR catalog recovery, and NOR operation timing. See the [audit progress ledger](KERNEL_AUDIT_PROGRESS.md) for evidence and remaining limits.
+Host regressions and builds do not establish hardware compatibility or timing. Open audit items include failed overwrites that can lose an existing SD save, settings-file write/close failures, NOR catalog recovery, and NOR operation timing. See the [audit progress ledger](progress.md) for evidence and remaining limits.
 
 Remembered selections use `/SYSTEM/CHEATSTATE/<hash>.cs2`, with full game-path identity and a cheat-content fingerprint. Changed cheat files invalidate the snapshot; legacy `CHS1`/`.cst` files are not imported. The snapshot supports up to 128 selected options, one per section; persistence is disabled for cheat files larger than 1 MiB. Failed writes are reported, but replacement is not atomic and can lose the prior snapshot.
 

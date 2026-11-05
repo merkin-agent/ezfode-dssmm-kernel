@@ -719,6 +719,7 @@ void IWRAM_CODE Check_FW_update()
 		sprintf(msg,"Press (B) to skip.");
 		DrawHZText12(msg,0,2,offset_Y+6*line_x, 0x7FFF,1);
 
+        REG_DISPCNT &= (u16)~0x0080;
 		while(1)
 		{
 			VBlankIntrWait();
@@ -769,6 +770,7 @@ void IWRAM_CODE Check_FW_update()
 			}
 		}
 	}
+    REG_DISPCNT |= 0x0080;
 }
 // --------------------------------------------------------------------
 static const u32 crc32tab[] = {

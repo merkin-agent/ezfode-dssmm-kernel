@@ -1,5 +1,12 @@
 # DS Style Kernel Audit Progress
 
+## 2026-11-05 — Integration resumed, buildable source checkpoint
+
+- Removed duplicate nonzero wrap declaration; retained EWRAM BSS and runtime missing-key default On. Explicit Off, canonical/legacy key precedence and present-invalid fallback Off remain preserved.
+- Initial resumed build PASS: 2,009,896 bytes (87,256 below 2 MiB), log `files/upstream-ui/resume-build.log`. Prior Auto root/Start repaint review fixes are present. Added missing SYSTEM close on SD-menu return to NOR; validation follows.
+- Checkpoint includes inherited production transplant, assets, review reports and selected patch/reject evidence. Integration is NOT yet validated: focused lifecycle/settings tests, all host suites, full audit, memory/shared-buffer review, candidate staging and public notes remain pending. Stable 8.2.0 unchanged. Next complete those gates and push final evidence on exploratory.
+
+
 ## 2026-11-05 — Recovery checkpoint: upstream integration incomplete
 
 - Usage interruption left selected upstream UI source/assets uncommitted on exploratory at `33f9625`. Prior carousel validation is already checkpointed. Do not restart or overwrite the pending integration; inspect the diff and both UPSTREAM review documents.

@@ -1,5 +1,12 @@
 # DS Style Kernel Audit Progress
 
+## 2026-11-05 — Recovery checkpoint: upstream integration incomplete
+
+- Usage interruption left selected upstream UI source/assets uncommitted on exploratory at `33f9625`. Prior carousel validation is already checkpointed. Do not restart or overwrite the pending integration; inspect the diff and both UPSTREAM review documents.
+- Last build failure: duplicate `launcher_wrap_around` declaration with nonzero initializer in EWRAM `.sbss`. Retain a zero-initialized storage declaration and establish default On through the settings reader; preserve explicitly saved Off. More integration/build checks remain; this is not a validated candidate.
+- Pending files include launch indicator/fade, popup/save artwork, Auto theme/navigation/SYSTEM helpers, easing Start markers and local splash packer. `source/ezkernelnew.c.rej` records patch conflicts; resolve individually, preserve fork protections and both retained settings, then remove the reject after verifying each hunk. Do not treat an applied patch as a completed integration.
+- Current work resumes toward a separately staged 8.3.0-rc1 test candidate. Validate builds, settings defaults and persistence, shared audio/artwork ownership, UI navigation, current Last played behavior and memory/size bounds. Commit/push a buildable checkpoint before lengthy final validation, then persist final test/artifact identity. No stable release publication requested.
+
 ## 2026-11-05 — Completed exploratory validation checkpoint; UI integration next
 
 - Reconciled the previously uncommitted evidence: all 19 host suites passed and `files/carousel-performance/full-audit.log` ends with successful audit completion (build, browser, JavaScript, whitespace and Cppcheck). The prior pending-validation statement is superseded. Candidate identity, linked RAM and disassembly are preserved in `files/CAROUSEL_EXPLORATORY_CANDIDATE.md` and its durable logs. No fresh hardware result or overall scrolling speedup is claimed.

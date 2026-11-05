@@ -1,5 +1,14 @@
 # DS Style Kernel Audit Progress
 
+## 2026-11-05 — Completed exploratory validation checkpoint; UI integration next
+
+- Reconciled the previously uncommitted evidence: all 19 host suites passed and `files/carousel-performance/full-audit.log` ends with successful audit completion (build, browser, JavaScript, whitespace and Cppcheck). The prior pending-validation statement is superseded. Candidate identity, linked RAM and disassembly are preserved in `files/CAROUSEL_EXPLORATORY_CANDIDATE.md` and its durable logs. No fresh hardware result or overall scrolling speedup is claimed.
+- Next priority is selective upstream UI integration from FrankieT19 `67a5f7b` (v8.0 source `6d6084e`), relative to previously integrated `df346b5`. Preserve all fork safeguards, optional Remember cheats/CHS2, optional Clean list names, CUSTOM Only, exact transparency sentinel, contour rollback, cache alignment/relocation guard, save/NOR protections and manifest optimization. Avoid wholesale merge and unrelated deployment assets.
+- Owner correction: Last played truncation was observed in another/downstream build, NOT current Merkin Mix. Preserve current filename behavior and prevent importing that regression; do not claim a local fix.
+- Requested UI: default-On wrap; grouped View options; clock Auto theme dark 20:00–08:00; Open SYSTEM; refined sounds/popups/launch ring and theme fade; eased Start corner markers; no artificial splash hold; startup sound finishes opening menu; title artwork in Saving Game Data overlay. Review reports will be `files/UPSTREAM_SETTINGS_REVIEW.md` and `files/UPSTREAM_PRESENTATION_REVIEW.md`; reviewers edit reports only.
+- Commit this completed validation checkpoint first, then integrate and validate milestones on exploratory. Prepare separate prerelease-test-only 8.3.0-rc1 candidate <=2 MiB, record hash/size/About/linker RAM, relevant tests and full audit. Commit/push final clean branch. Stable v8.2.0 is untouched; no release/PR publication requested. Existing F-011/F-022/F-032/F-036 remain open.
+
+
 ## 2026-11-04 — Carousel manifest implementation and focused evidence
 
 - Owner clarified the symptom: **gradual slowdown as folder size grows**, becoming noticeable around 60 titles; this is not a hard threshold or threshold-bug claim. This clarification supersedes older shorthand about >60.

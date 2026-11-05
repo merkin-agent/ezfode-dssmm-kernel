@@ -52,3 +52,21 @@ Integration follow-up: owner proposes sorted CUSTOM hash membership. Of the impl
 ## Work performed and limits
 
 Performed read-only rg/sed/head/cat/git inspection of current ledgers, agent prompt, indexed-name helper, launcher cache/artwork/navigation, motion incoming path, FatFs lookup and existing host fixture. No host suite, target build, synthetic timing, or hardware benchmark was run by this reviewer; integration owner owns those. All counts above are source-derived expectations. No proven universal root cause, measured speedup, or erroneous >60 invalidation is claimed. No commits/pushes by reviewer. Report is the durable handoff; other files remain untouched by this reviewer.
+
+## Integration follow-up, 2026-11-04 UTC
+
+Integration owner relayed the user's clarification: slowdown is gradual and becomes noticeable near 60 titles; 60 is not a hard threshold. This is consistent with linear directory-search cost but does not establish its share of hardware latency.
+
+Owner reports implementing an in-place Shell sort after the existing CUSTOM manifest collection and binary membership lookup, with no allocation or recursion. Owner reports the production-extraction regression passed 169,620 queries plus cap, style, error and warm-path tests. This reviewer did not independently run those tests or review the final implementation.
+
+Owner also reports a FatFs operation-count script with the following results. Counts are owner-reported `dir_next` operations, not milliseconds or SD-sector reads:
+
+| Fixture titles | Last LFN lookup | Missing-name lookup |
+| --- | --- | --- |
+| 30 | 121 | 132 |
+| 60 | 242 | 253 |
+| 90 | 363 | 374 |
+| 120 | 484 | 495 |
+| 240 | 965 | 976 |
+
+These measurements support the source-derived directory-search scaling finding. CUSTOM membership optimization does not remove those FatFs scans. Integration owner owns durable test scripts/logs, final validation, candidate/build evidence and checkpoints. Review is finalized for integration; no additional files changed by this reviewer.

@@ -1,5 +1,19 @@
 # Changelog
 
+## DS Style Merkin Mix 8.3.0-rc1 — exploratory test candidate
+
+This is an exploratory test build, not a stable release.
+
+### New features since 8.2.0
+
+- Added FrankieT19's eased Start-screen corner-marker movement and refined menu sounds, pop-ups and launch feedback, including a loading ring over selected artwork and a theme-matched fade.
+- Refined FrankieT19's startup presentation so menu preparation can continue while startup audio finishes, without waiting for the full audio clip.
+- Added FrankieT19's clock-based Auto theme, dark from 20:00 to 08:00, grouped artwork controls under View options, and Open SYSTEM access to support files.
+- Enabled FrankieT19's wrap-around browsing and menu navigation defaults while continuing to honor saved Off preferences.
+- Added FrankieT19's double-tap Select shortcut to add or remove a favourite without a confirmation pop-up.
+- Added FrankieT19's Boot to control for the cartridge's startup destination while keeping the existing Start screen available.
+- Added FrankieT19's selected-game artwork to the Saving Game Data presentation.
+
 ## DS Style Merkin Mix 8.2.0
 
 This build includes the v8.1.0 features and fixes, with new carousel and cheat-menu features.

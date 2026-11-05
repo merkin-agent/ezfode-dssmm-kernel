@@ -61,3 +61,5 @@ The script also uses host test tools, Node and Cppcheck; consult the script for 
 ## Credits and license
 
 Thanks to **Sterophonick**, **FrankieT19**, **exploitz86**, and **SkillerCMP** for DS Style and the related kernel contributions on which this work draws. See [CREDITS.md](CREDITS.md) for provenance and the distinction between inherited features and the 8.2.0 integration.
+
+The repository includes the [Apache License 2.0](LICENSE). Retain the individual component licenses and attribution notices.

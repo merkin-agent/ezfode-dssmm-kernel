@@ -1,6 +1,7 @@
 #include <gba_video.h>
 #include <gba_interrupt.h>
 #include <gba_systemcalls.h>
+#include <gba_compression.h>
 #include <gba_input.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +31,7 @@
 #include "launcher_indexed_name.h"
 #include "savefile_policy.h"
 #include "thai620.h"
+#include "select_raw.h"
 
 static void Launcher_SaveUnifiedSettings(void);
 static void Launcher_SaveSettingsInfo(void);
@@ -109,6 +111,7 @@ static u32 launcher_favourites_cache_blocked = 0;
 static char launcher_favourites_cache[LAUNCHER_MAX_FAVOURITES][LAUNCHER_FAVOURITE_PATH_LEN];
 static u32 launcher_start_uses_favourites = 0;
 static u32 launcher_start_screen_off = 0;
+static u32 launcher_open_system_requested = 0;
 static u32 launcher_boot_target = 0;
 static u32 launcher_select_release_cooldown = 0;
 static u32 launcher_suppress_next_select_cycle = 0;
@@ -146,7 +149,8 @@ static u32 launcher_start_title_scroll_frame = 0;
 #define LAUNCHER_SYSTEM_NAME_DISPLAY_MAX 11
 #define LAUNCHER_THEME_MODE_LIGHT 0
 #define LAUNCHER_THEME_MODE_DARK 1
-#define LAUNCHER_THEME_MODE_CUSTOM 2
+#define LAUNCHER_THEME_MODE_AUTO 2
+#define LAUNCHER_THEME_MODE_CUSTOM 3
 #define LAUNCHER_BOOT_TO_START 0
 #define LAUNCHER_BOOT_TO_SD 1
 #define LAUNCHER_BOOT_TO_NOR 2
@@ -322,7 +326,7 @@ u32 Check_file_type(TCHAR *pfilename);
 #include "nor_icon.h"
 #include "NOTFOUND.h"
 #include "NOTFOUNDsquare.h"
-#include "SPLASH.h"
+#include "launcher_splash_lz.h"
 
 
 #include "goomba.h"
@@ -500,7 +504,7 @@ static FM_FILE_FS pFilename_sort_probe EWRAM_BSS;
 static FM_Folder_FS launcher_folder_sort_temp EWRAM_BSS;
 
 u32 FAT_table_buffer[FAT_table_size/4]EWRAM_BSS;
-u8 pReadCache [MAX_pReadCache_size]EWRAM_BSS;
+u8 pReadCache [MAX_pReadCache_size]EWRAM_BSS __attribute__((aligned(4)));
 
 static u32 Launcher_IsCP936LeadByte(u8 value)
 {
@@ -706,6 +710,8 @@ static const LauncherTheme launcher_themes[LAUNCHER_THEME_COUNT] =
 
 static u16 launcher_theme_index = 0;
 static u16 launcher_dark_mode = 0;
+static u16 launcher_auto_theme = 0;
+static u16 launcher_auto_theme_pending = 0;
 static u16 launcher_custom_theme_mode = 0;
 static u16 launcher_thumbnail_style = LAUNCHER_THUMB_STYLE_TITLE;
 static u16 launcher_sounds_enabled = 1;
@@ -713,7 +719,6 @@ static u16 launcher_hide_system_files = 1;
 static u16 launcher_list_folders = 0;
 static u16 launcher_clean_list = 0;
 static u16 launcher_wrap_around EWRAM_BSS;
-static u16 launcher_wrap_around = 0;
 static u16 launcher_carousel_animations = 1;
 static u16 launcher_carousel_equal_sides = 0;
 static u16 launcher_motion_input[4];
@@ -725,6 +730,8 @@ static void Launcher_AnimateCarouselMove(int move, u32 index);
 static u32 Launcher_DrawMotionRest(void);
 static u16 Launcher_MotionTakeInput(void);
 #include "carousel_motion_text.h"
+#include "settings_polish_text.h"
+#include "settings_navigation.h"
 static u16 launcher_clock_24_hour = 1;
 static u16 launcher_art_border_mode = 0;
 static u16 launcher_art_rounded_corners = 0;
@@ -992,6 +999,7 @@ static const char *Launcher_ThumbnailFolder(void)
 
 static const char *Launcher_ThemeModeName(void)
 {
+	if(launcher_auto_theme) return "Auto";
 	if(launcher_custom_theme_mode)
 		return "Custom";
 	return launcher_dark_mode ? "Dark" : "Light";
@@ -1001,7 +1009,7 @@ static u32 Launcher_IsThemeModeName(const char *name)
 {
 	if(!name)
 		return 0;
-	if(!strcasecmp(name, "Light") || !strcasecmp(name, "Dark"))
+	if(!strcasecmp(name, "Light") || !strcasecmp(name, "Dark") || !strcasecmp(name, "Auto"))
 		return 1;
 #if LAUNCHER_CUSTOM_THEME_ENABLED
 	if(!strcasecmp(name, "Custom"))
@@ -1012,10 +1020,20 @@ static u32 Launcher_IsThemeModeName(const char *name)
 
 static void Launcher_SetThemeModeName(const char *name)
 {
+	launcher_auto_theme = name && !strcasecmp(name, "Auto");
+	launcher_auto_theme_pending = 0;
 	launcher_dark_mode = 0;
 	launcher_custom_theme_mode = 0;
 	if(!name)
 		return;
+	if(launcher_auto_theme)
+    {
+        u8 time[3]; u32 hour;
+        rtc_enable(); rtc_gettime(time); rtc_disenable();
+        hour = UNBCD(time[0] & 0x3F);
+        launcher_dark_mode = hour < 24 && (hour >= 20 || hour < 8);
+        return;
+    }
 	if(!strcasecmp(name, "Dark"))
 		launcher_dark_mode = 1;
 #if LAUNCHER_CUSTOM_THEME_ENABLED
@@ -1030,6 +1048,7 @@ static void Launcher_LoadTheme(void)
 	char buf[32];
 
 	launcher_theme_index = 0;
+	launcher_auto_theme = 0;
 	launcher_dark_mode = 0;
 	launcher_custom_theme_mode = 0;
 	memset(buf, 0, sizeof(buf));
@@ -1088,21 +1107,16 @@ static void Launcher_CycleTheme(int dir)
 
 static void Launcher_CycleThemeMode(int dir)
 {
-	u16 mode = launcher_custom_theme_mode ? LAUNCHER_THEME_MODE_CUSTOM : (launcher_dark_mode ? LAUNCHER_THEME_MODE_DARK : LAUNCHER_THEME_MODE_LIGHT);
-	u16 count = LAUNCHER_CUSTOM_THEME_ENABLED ? 3 : 2;
-	if(dir < 0)
-		mode = (mode == 0) ? (count - 1) : (mode - 1);
-	else
-	{
-		mode++;
-		if(mode >= count)
-			mode = 0;
-	}
-	launcher_dark_mode = (mode == LAUNCHER_THEME_MODE_DARK);
-	launcher_custom_theme_mode = (mode == LAUNCHER_THEME_MODE_CUSTOM);
-	Launcher_ApplyThemeColours();
-	Launcher_SaveTheme();
+    u32 mode = launcher_custom_theme_mode ? 3 : launcher_auto_theme ? 2 : launcher_dark_mode ? 1 : 0;
+    u32 count = LAUNCHER_CUSTOM_THEME_ENABLED ? 4 : 3;
+    static const char *const names[] = {"Light", "Dark", "Auto", "Custom"};
+    mode = dir < 0 ? (mode ? mode - 1 : count - 1) : (mode + 1) % count;
+    Launcher_SetThemeModeName(names[mode]);
+    Launcher_ApplyThemeColours();
+    Launcher_SaveTheme();
 }
+
+#include "settings_auto_theme.h"
 
 static const char *Launcher_ThemeName(void)
 {
@@ -1231,6 +1245,9 @@ static u16 launcher_cheat_counter_last_x = 219;
 static u32 launcher_cheat_counter_valid = 0;
 static u32 launcher_reopen_sd_menu_after_redraw = 0;
 static u32 launcher_reopen_from_cheat_screen = 0;
+static u32 launcher_silent_menu_return = 0;
+static volatile u32 launcher_launch_screen_active = 0;
+static void Launcher_EndLaunchIndicator(void);
 static u32 launcher_restore_popup_region = 0;
 static u32 launcher_start_window_preserved = 0;
 static u32 launcher_popup_restore_redraw = 0;
@@ -1280,6 +1297,7 @@ static void Launcher_RestorePopupRegionForPage(u32 page_num, u32 top_art_has_thu
 
 static void Launcher_DrawThemeBGFull(const u16 *base)
 {
+    Launcher_EndLaunchIndicator();
 	const u16 *top = Launcher_GetThemeTopForBase(base);
 
 	if(top && (top == launcher_current_topbar_bg))
@@ -1384,7 +1402,8 @@ typedef enum
     UI_SFX_MENU,
     UI_SFX_MOVE,
     UI_SFX_STARTUP,
-    UI_SFX_TAB
+    UI_SFX_TAB,
+    UI_SFX_LAUNCH
 } UI_SFX_ID;
 
 static u16 UIAudio_TimerReload(u32 sample_rate)
@@ -1467,8 +1486,11 @@ static u32 UIAudio_PrepareBuffer(const signed char *data, u32 len, u32 allow_sha
         padded_len = buffer_size;
 
     /* Clear the active transfer, including its final partial FIFO block. */
-    memset(buffer, 0, padded_len);
-    memcpy(buffer, data, copy_len);
+    if(data != buffer)
+    {
+        memset(buffer, 0, padded_len);
+        memcpy(buffer, data, copy_len);
+    }
 
     if(out_buffer)
         *out_buffer = buffer;
@@ -1615,22 +1637,24 @@ static void UIAudio_PlaySfx(UI_SFX_ID id)
         case UI_SFX_MOVE: UIAudio_PlayRaw((const signed char*)move_raw, move_raw_len, 22050, 0); break;
         case UI_SFX_STARTUP: UIAudio_PlayRaw((const signed char*)startup_raw, startup_raw_len, 22050, 1); break;
         case UI_SFX_TAB: UIAudio_PlayRaw((const signed char*)tab_raw, tab_raw_len, 22050, 0); break;
+        case UI_SFX_LAUNCH:
+            UIAudio_Stop();
+            LZ77UnCompWram(select_lz, g_ui_audio_buffer);
+            UIAudio_PlayRaw(g_ui_audio_buffer, select_raw_len, 8000, 0);
+            break;
         default: break;
     }
 }
+
+#include "popup_chrome.h"
+#include "menu_fade.h"
+#include "launch_screen.h"
 
 void UIAudio_PlayStartup(void)
 {
 #if LAUNCHER_BOOT_SOUND_ENABLED
     UIAudio_PlaySfx(UI_SFX_STARTUP);
 #endif
-}
-
-#define LAUNCHER_SPLASH_VISUAL_FRAMES 0
-
-static u32 UIAudio_GetStartupSplashFrames(void)
-{
-    return LAUNCHER_SPLASH_VISUAL_FRAMES;
 }
 
 static void UIAudio_HandleKeysEx(u16 keysdown, u16 keysrepeat, u32 allow_tab, u32 allow_move)
@@ -3456,17 +3480,7 @@ void Filename_loop(u32 shift,u32 show_offset,u32 file_select,u32 haveThumbnail)
 	}
 }
 //---------------------------------------------------------------------------------
-void Show_MENU_btn()
-{
-	char *msg = gl_menu_btn;
-
-	if(gl_select_lang == 0xE2E2)
-		msg = (char*)" (B)\310\241\317\373    (A)\310\267\266\250";
-
-	Clear(60,118-1,55,14,gl_color_selectBG_sd,1);
-	Clear(125,118-1,55,14,gl_color_selectBG_sd,1);
-	DrawHZText12(msg,0,60,118, LAUNCHER_SELECTED_TEXT,1);
-}
+static u32 launcher_menu_row_y = 30;
 //---------------------------------------------------------------------------------
 static void Launcher_RestoreLegacyMenuRow(u32 y, u32 h)
 {
@@ -3529,7 +3543,7 @@ static void Launcher_RedrawRomMenuSaveTypeValue(u32 save_num)
 	const u32 popup_y = 25;
 	const u32 popup_w = 168;
 	const u32 value_x = 112;
-	const u32 value_y = 30 + 4 * 14;
+	const u32 value_y = launcher_menu_row_y + 4 * 14;
 	const u32 value_w = 86;
 	const u32 value_h = 13;
 	const u32 src_x = value_x - popup_x;
@@ -3545,7 +3559,7 @@ static void Launcher_RedrawRomMenuSaveTypeValue(u32 save_num)
 static void Show_MENU_Row(u32 line, u32 menu_select, PAGE_NUM page, u32 havecht, u32 Save_num,
 	 u32 nor_delete_allowed)
 {
-	u32 y_offset= 30;
+	u32 y_offset = launcher_menu_row_y;
 	u16 name_color;
 	char msg[64];
 	u32 text_line = line;
@@ -3630,6 +3644,7 @@ void Show_MENU(u32 menu_select,PAGE_NUM page,u32 havecht,u32 Save_num,u32 is_men
 		linemax = 1;
 	}
 
+	launcher_menu_row_y = 25 + (110 - (linemax * 14 - 1)) / 2;
 	for(line=0;line<linemax;line++)
 	{
 		Show_MENU_Row(line, menu_select, page, havecht, Save_num, nor_delete_allowed);
@@ -4180,6 +4195,38 @@ static s32 Launcher_FindFavouriteFullPath(const char *fullpath)
 	return -1;
 }
 
+static u32 Launcher_ToggleFavouriteFullPath(const char *fullpath)
+{
+	s32 fav_index;
+
+	if(!fullpath || !fullpath[0])
+		return 0;
+	Launcher_LoadFavourites();
+	if(launcher_favourites_cache_blocked)
+		return 0;
+
+	fav_index = Launcher_FindFavouriteFullPath(fullpath);
+	if(fav_index >= 0)
+	{
+		u32 i;
+		for(i = (u32)fav_index; i + 1 < launcher_favourite_count; i++)
+		{
+			memset(Launcher_FavouritesBuffer()[i], 0x00, LAUNCHER_FAVOURITE_PATH_LEN);
+			dmaCopy(Launcher_FavouritesBuffer()[i + 1], Launcher_FavouritesBuffer()[i], LAUNCHER_FAVOURITE_PATH_LEN);
+		}
+		if(launcher_favourite_count)
+			launcher_favourite_count--;
+		memset(Launcher_FavouritesBuffer()[launcher_favourite_count], 0x00, LAUNCHER_FAVOURITE_PATH_LEN);
+		if(launcher_favourite_index >= launcher_favourite_count)
+			launcher_favourite_index = 0;
+		Launcher_SaveFavourites();
+	}
+	else if(!Launcher_AppendFavouriteFullPath(fullpath))
+		return 0;
+
+	return 1;
+}
+
 static u32 Launcher_IsLaunchableFilename(const TCHAR *name)
 {
 	TCHAR temp[256];
@@ -4188,6 +4235,14 @@ static u32 Launcher_IsLaunchableFilename(const TCHAR *name)
 	strncpy(temp, name, sizeof(temp) - 1);
 	temp[sizeof(temp) - 1] = '\0';
 	return Check_file_type(temp) != 0xff;
+}
+
+static u32 Launcher_IsGameFilename(const TCHAR *name)
+{
+    const char *ext = strrchr(name, '.');
+    if(!ext || !strcasecmp(ext, ".txt") || !strcasecmp(ext, ".md") ||
+       !strcasecmp(ext, ".markdown")) return 0;
+    return Launcher_IsLaunchableFilename(name);
 }
 
 static u32 Launcher_GetSDFileFullPath(u32 absolute_index, char *out, u32 out_size)
@@ -4340,7 +4395,7 @@ static const char *Launcher_BootToText(void)
 		return DSTEXT_BOOT_TO_NOR;
 	if(launcher_boot_target == LAUNCHER_BOOT_TO_SD)
 		return DSTEXT_BOOT_TO_SD;
-	return DSTEXT_BOOT_TO_START;
+	return Launcher_SettingsText(SETTINGS_TEXT_START_SCREEN);
 }
 
 static const char *Launcher_BootToSettingName(void)
@@ -5244,14 +5299,17 @@ u32 IWRAM_CODE Loadfile2PSRAM(TCHAR *filename)
 	if(res == FR_OK)
 	{
 		filesize = f_size(&gfile);
-		Clear(0, 160 - 15, 240, 15, gl_color_cheat_black, 1);
+		if(!launcher_launch_screen_active) Clear(0, 160 - 15, 240, 15, gl_color_cheat_black, 1);
 		ShowbootProgress(gl_copying_data);
 		f_lseek(&gfile, 0x0000);
 		for(blocknum=0x0000;blocknum<filesize;blocknum+=0x20000)
 		{
-			sprintf(msg,"%luMb/%luMb",(blocknum)/0x20000,filesize/0x20000);
-			Clear(78+54,160-15,110,15,gl_color_cheat_black,1);
-			DrawHZText12(msg,0,78+54,160-15,gl_color_text,1);
+            if(!launcher_launch_screen_active)
+            {
+                sprintf(msg,"%luMb/%luMb",(blocknum)/0x20000,filesize/0x20000);
+                Clear(78+54,160-15,110,15,gl_color_cheat_black,1);
+                DrawHZText12(msg,0,78+54,160-15,gl_color_text,1);
+            }
 			f_read(&gfile, pReadCache, 0x20000, &ret);//pReadCache max 0x20000 Byte
 
 			if((gl_reset_on==1) || (gl_rts_on==1) || (gl_sleep_on==1) || (gl_cheat_on==1))
@@ -5610,6 +5668,7 @@ void ShowTime(u32 page_num ,u32 page_mode)
 	HH = UNBCD(datetime[0]&0x3F);
 	MM = UNBCD(datetime[1]&0x7F);
 	SS = UNBCD(datetime[2]&0x7F);
+    Launcher_QueueAutoTheme(HH);
 	if(HH >23)HH=0;
 	if(MM >59)MM=0;
 	if(SS >59)SS=0;
@@ -5841,17 +5900,23 @@ u32 IWRAM_CODE LoadEMU2PSRAM(TCHAR *filename,u32 is_EMU)
 	{
 		filesize = f_size(&gfile);
 
-		Clear(60,160-15,120,15,gl_color_cheat_black,1);
-		DrawHZText12(gl_writing,0,78,160-15,0x7fff,1);
+        if(!launcher_launch_screen_active)
+        {
+            Clear(60,160-15,120,15,gl_color_cheat_black,1);
+            DrawHZText12(gl_writing,0,78,160-15,0x7fff,1);
+        }
 
 		f_lseek(&gfile, 0x0000);
 		ShowbootProgress(gl_generating_emu);
 		for(blocknum=0x0000;blocknum<filesize;blocknum+=0x20000)
 		{
-			sprintf(msg, "%luMb", (blocknum + blockoffset) / 0x20000);
-			str_len = strlen(msg);
-			Clear(0, 130, 240, 15, gl_color_cheat_black, 1);
-			DrawHZText12(msg, 0, (240 - str_len * 6) / 2, 160 - 30, 0x7fff, 1);
+            if(!launcher_launch_screen_active)
+            {
+                sprintf(msg, "%luMb", (blocknum + blockoffset) / 0x20000);
+                str_len = strlen(msg);
+                Clear(0, 130, 240, 15, gl_color_cheat_black, 1);
+                DrawHZText12(msg, 0, (240 - str_len * 6) / 2, 160 - 30, 0x7fff, 1);
+            }
 			//f_lseek(&gfile, blocknum);
 			if (filesize - blocknum * 0x20000 < 0x20000)
 				memset(pReadCache, 0, 0x20000);
@@ -6017,6 +6082,39 @@ static void Launcher_CustomThumbStripLine(char *line)
 	}
 }
 
+/* Sort once in place; keep the same bounded hash set and exact-path opens. */
+static void Launcher_SortCustomThumbManifest(u32 *hashes, u32 count)
+{
+	u32 gap, i, j, value;
+	for(gap = count / 2; gap; gap /= 2)
+	{
+		for(i = gap; i < count; i++)
+		{
+			value = hashes[i];
+			for(j = i; j >= gap && hashes[j - gap] > value; j -= gap)
+				hashes[j] = hashes[j - gap];
+			hashes[j] = value;
+		}
+	}
+}
+
+static u32 Launcher_CustomThumbManifestContains(const u32 *hashes, u32 count, u32 hash)
+{
+	u32 low = 0;
+	u32 high = count;
+	while(low < high)
+	{
+		u32 mid = low + (high - low) / 2;
+		if(hashes[mid] == hash)
+			return 1;
+		if(hashes[mid] < hash)
+			low = mid + 1;
+		else
+			high = mid;
+	}
+	return 0;
+}
+
 static void __attribute__((noinline)) Launcher_LoadCustomThumbManifest(u32 style)
 {
 	u32 hash;
@@ -6054,13 +6152,14 @@ static void __attribute__((noinline)) Launcher_LoadCustomThumbManifest(u32 style
 			launcher_custom_thumb_manifest_hash[style][launcher_custom_thumb_manifest_count[style]++] = hash;
 	}
 	f_closedir(&launcher_custom_thumb_scan_dir);
+	Launcher_SortCustomThumbManifest(launcher_custom_thumb_manifest_hash[style],
+		launcher_custom_thumb_manifest_count[style]);
 }
 
 static u32 Launcher_ShouldTryCustomThumbnail(const char *name)
 {
 	u32 style = launcher_thumbnail_style;
 	u32 hash;
-	u32 i;
 
 	if(style > LAUNCHER_THUMB_STYLE_BOX)
 		style = LAUNCHER_THUMB_STYLE_TITLE;
@@ -6070,12 +6169,8 @@ static u32 Launcher_ShouldTryCustomThumbnail(const char *name)
 	if(!launcher_custom_thumb_manifest_present[style])
 		return 0;
 	hash = Launcher_CustomThumbHash(name);
-	for(i = 0; i < launcher_custom_thumb_manifest_count[style]; i++)
-	{
-		if(launcher_custom_thumb_manifest_hash[style][i] == hash)
-			return 1;
-	}
-	return 0;
+	return Launcher_CustomThumbManifestContains(launcher_custom_thumb_manifest_hash[style],
+		launcher_custom_thumb_manifest_count[style], hash);
 }
 
 static u16 Launcher_ListArtRawInput(void)
@@ -7434,6 +7529,10 @@ static void Launcher_UpdateEffectiveViewMode(void)
 	gl_show_Thumbnail && (gl_show_Thumbnail != LAUNCHER_VIEW_LIST_ART) &&
 	(launcher_sd_launchable_file_count == 0))
 		launcher_effective_show_thumbnail = LAUNCHER_VIEW_LIST;
+	if(launcher_active_page == SD_list && !recents_view_active &&
+       !strncasecmp(currentpath, "/SYSTEM", 7) &&
+       (!currentpath[7] || currentpath[7] == '/'))
+        launcher_effective_show_thumbnail = LAUNCHER_VIEW_LIST;
 	if(old_view != launcher_effective_show_thumbnail)
 		launcher_force_full_redraw = 1;
 }
@@ -9187,8 +9286,8 @@ u32 SD_list_L_START(u32 show_offset,u32 file_select,u32 folder_total)
 	const FM_FILE_FS *record = &pFilename_buffer[show_offset + file_select - folder_total];
 	const TCHAR *identity = Launcher_FileIdentityName(record);
 	//u32 res;
-	DrawPic((u16*)gImage_MENU, 36, 25, 168, 110, 1, 0, 1);//show menu pic
-	Show_MENU_btn();
+	Launcher_DrawPopupPanel(36, 25);//show menu pic
+
 
 	char *msg1 = "Delete this file?"; int x1 = (240 - strlen(msg1) * 6) / 2;
 	DrawHZText12(msg1, 0, x1, 45, gl_color_text, 1);
@@ -9289,88 +9388,14 @@ static void Launcher_CycleViewModeAndRedraw(u32 page_num, u32 *show_offset_ptr, 
 		*updata = 1;
 }
 
-static void Launcher_FavouritePromptFullPath(const char *full)
-{
-	char msg2[80];
-	s32 fav_index;
-
-	if(!full || !full[0])
-		return;
-
-	Launcher_LoadFavourites();
-	if(launcher_favourites_cache_blocked)
-		return;
-	fav_index = Launcher_FindFavouriteFullPath(full);
-	DrawPic((u16*)gImage_MENU, 36, 25, 168, 110, 1, 0, 1);
-	Show_MENU_btn();
-	if(fav_index >= 0)
-	{
-		char *msg1 = "Remove favourite?";
-		int x1 = (240 - strlen(msg1) * 6) / 2;
-		DrawHZText12(msg1, 0, x1, 45, gl_color_text, 1);
-	}
-	else
-	{
-		char *msg1 = "Set game as favourite?";
-		int x1 = (240 - strlen(msg1) * 6) / 2;
-		DrawHZText12(msg1, 0, x1, 45, gl_color_text, 1);
-	}
-	(void)msg2;
-
-	while(1)
-	{
-		VBlankIntrWait();
-		VBlankIntrWait();
-		scanKeys();
-		{
-			u16 keysdown = keysDown();
-			UIAudio_HandleKeysEx(keysdown, 0, 0, 0);
-			if(keysdown & KEY_A)
-			{
-				UIAudio_PlayAccept();
-				if(fav_index >= 0)
-				{
-					u32 i;
-					for(i = (u32)fav_index; i + 1 < launcher_favourite_count; i++)
-					{
-						memset(Launcher_FavouritesBuffer()[i], 0x00, LAUNCHER_FAVOURITE_PATH_LEN);
-						dmaCopy(Launcher_FavouritesBuffer()[i + 1], Launcher_FavouritesBuffer()[i], LAUNCHER_FAVOURITE_PATH_LEN);
-					}
-					if(launcher_favourite_count)
-						launcher_favourite_count--;
-					memset(Launcher_FavouritesBuffer()[launcher_favourite_count], 0x00, LAUNCHER_FAVOURITE_PATH_LEN);
-					if(launcher_favourite_index >= launcher_favourite_count)
-						launcher_favourite_index = 0;
-				}
-				else
-				{
-					/* Append new favourites directly. Rewriting the whole favourites file
-					through the shared cache could drop existing entries on this kernel. */
-					Launcher_AppendFavouriteFullPath(full);
-				}
-				if(fav_index >= 0)
-					Launcher_SaveFavourites();
-				launcher_force_full_redraw = 1;
-				break;
-			}
-			else if(keysdown & KEY_B)
-			{
-				UIAudio_PlayBack();
-				launcher_force_full_redraw = 1;
-				break;
-			}
-		}
-	}
-}
-
-static void Launcher_FavouritePrompt(u32 show_offset, u32 file_select)
+static u32 Launcher_ToggleFavourite(u32 show_offset, u32 file_select)
 {
 	char full[512];
 	u32 absolute_index = Launcher_ResolveListEntryIndex(show_offset + file_select);
 
 	if(!Launcher_GetSDFileFullPath(absolute_index, full, sizeof(full)))
-		return;
-	Launcher_FavouritePromptFullPath(full);
+		return 0;
+	return Launcher_ToggleFavouriteFullPath(full);
 }
 
 //---------------------------------------------------------------------------------
@@ -9419,11 +9444,28 @@ u32 Check_file_type(TCHAR *pfilename)
 	return 0xff;
 }
 //---------------------------------------------------------------------------------
+static void Launcher_ShowLaunchError(const char *message)
+{
+    u32 cells = DrawText12VisibleLength((char*)message), offset = 0, row;
+    u32 lines = (cells + 24) / 25;
+    char line[80];
+    Launcher_EndLaunchIndicator();
+    Launcher_DrawPopupPanel(36, 25);
+    for(row = 0; row < lines; row++)
+    {
+        DrawText12CopyVisible(line, sizeof(line), (char*)message + offset, 25);
+        offset += DrawText12ByteOffsetForGlyphs((char*)message + offset, 25);
+        DrawHZText12(line, 0, (240 - DrawText12VisibleLength(line) * 6) / 2,
+            80 - (lines * 14) / 2 + row * 14, gl_color_text, 1);
+    }
+    launcher_force_full_redraw = 1;
+}
+
 void Show_error_num(u8 error_num)
 {
-	char msg[50];
-
-	Launcher_ClearWithThemeBG(Launcher_GetBGImage(),90, 2, 90, 13);
+    char msg[50];
+    u32 launching = launcher_launch_screen_active;
+    if(!launching) Launcher_ClearWithThemeBG(Launcher_GetBGImage(),90, 2, 90, 13);
 	switch(error_num)
 	{
 		case 0x0:
@@ -9452,7 +9494,8 @@ void Show_error_num(u8 error_num)
 			break;
 	}
 
-	DrawHZText12(msg,0,90,2, RGB(31,00,00),1);
+	if(launching) Launcher_ShowLaunchError(msg);
+    else DrawHZText12(msg,0,90,2, RGB(31,00,00),1);
 	wait_btn();
 }
 //---------------------------------------------------------------------------------
@@ -9584,6 +9627,8 @@ u8 Process_savefile(u32 is_EMU,TCHAR *pfilename,u32 gamefilesize,BYTE saveMODE)
 	return 0;
 }
 //---------------------------------------------------------------------------------
+#include "save_popup.h"
+
 void Check_save_flag(void)
 {
 	//check save
@@ -9601,27 +9646,26 @@ void Check_save_flag(void)
 			or touching save buffers so it cannot buzz over the save prompt. */
 			UIAudio_StopForSharedBufferUse();
 			register u32 loopwrite ;
-			Launcher_DrawThemeBGFull(Launcher_GetBGImage());
 			for(loopwrite=0;loopwrite<0x200/2;loopwrite++)
 			{
 				((u16*)SAV_info_buffer)[loopwrite] = Read_sav_info(loopwrite+2);
 			}
-			DrawPic((u16*)gImage_MENU, 36, 25, 168, 110, 1, 0, 1);//show menu pic
-
-
-			DrawHZText12(gl_save_sav,0,47,28,gl_color_text,1);//use sure?gl_LSTART_help
-			DrawHZText12((TCHAR *)SAV_info_buffer,   20,47,40,gl_color_text,1);//file name
-			DrawHZText12((TCHAR *)SAV_info_buffer+20,20,47,52,gl_color_text,1);//file name
-			DrawHZText12((TCHAR *)SAV_info_buffer+40,20,47,64,gl_color_text,1);//file name
+            char display_name[100];
+            u32 artwork;
+            memcpy(display_name, SAV_info_buffer, sizeof(display_name)-1);
+            display_name[sizeof(display_name)-1] = 0;
+            artwork = Launcher_LoadSaveArtwork(display_name);
+            Launcher_EndSplash();
+            Launcher_DrawThemeBGFull(Launcher_GetBGImage());
+            Launcher_DrawSaveTopbar();
+            Launcher_DrawSavePopup(display_name, artwork, gl_auto_save_sel != 0);
 
 			if(gl_auto_save_sel){
-					DrawHZText12(gl_save_ing,0,47,88,gl_color_text,1);//use sure?gl_LSTART_help
 					res = f_mkdir(SAVER_FOLDER);//"/SAVER"
 					if((res == FR_OK || res == FR_EXIST) && f_chdir(SAVER_FOLDER) == FR_OK)
 						save_written = Save_savefile((TCHAR *)SAV_info_buffer,savefilesize);
 			}
 			else{
-				Show_MENU_btn();
 				while(1){
 					VBlankIntrWait();
 					scanKeys();
@@ -9629,7 +9673,7 @@ void Check_save_flag(void)
 					UIAudio_HandleKeys(keysdown, 0);
 					if (keysdown & KEY_A) {
 						UIAudio_PlayAccept();
-						DrawHZText12(gl_save_ing,0,60,88,gl_color_text,1);//use sure?gl_LSTART_help
+						Launcher_SavePopupBeginWrite();
 						res = f_mkdir(SAVER_FOLDER);
 						if((res == FR_OK || res == FR_EXIST) && f_chdir(SAVER_FOLDER) == FR_OK)
 							save_written = Save_savefile((TCHAR *)SAV_info_buffer,savefilesize);
@@ -9888,7 +9932,7 @@ static const char *Launcher_RoundedCornersText(void)
     switch(launcher_art_rounded_corners)
     {
         case 1: return DSTEXT_ROUNDED_FULL;
-        case 2: return DSTEXT_ROUNDED_NO_START;
+        case 2: return Launcher_SettingsText(SETTINGS_TEXT_EXCEPT_START);
         case 3: return "CUSTOM Only";
         default: return DSTEXT_OFF;
     }
@@ -10124,7 +10168,7 @@ static void Launcher_ReadWrapAroundSetting(void)
     char buf[32];
     unsigned migrate = 0;
 
-    launcher_wrap_around = 0;
+    launcher_wrap_around = 1;
     memset(buf, 0, sizeof(buf));
     if(!Launcher_SettingsReadValue("Wrap list", buf, sizeof(buf)) &&
        !Launcher_SettingsReadValue("Wrap around", buf, sizeof(buf)))
@@ -10454,6 +10498,8 @@ typedef enum
     SETTINGS_REMEMBER_CHEATS,
     SETTINGS_LED_SETTINGS,
     SETTINGS_HELP,
+    SETTINGS_ART_POSITION,
+    SETTINGS_VIEW_OPTIONS,
     SETTINGS_TOTAL
 } LauncherSettingsItem;
 
@@ -10478,20 +10524,20 @@ static void Launcher_SettingsGetLine(u32 item, char *out, u32 out_size)
         case SETTINGS_HORIZONTAL_SIDE: label = DSTEXT_SETTINGS_HORIZONTAL_SIDE; value = Launcher_HorizontalSideText(); break;
         case SETTINGS_SOUNDS: label = DSTEXT_SETTINGS_SOUNDS; value = Launcher_OnOffText(launcher_sounds_enabled); break;
         case SETTINGS_LANGUAGE: label = DSTEXT_SETTINGS_LANGUAGE; value = Launcher_LanguageName(); break;
-        case SETTINGS_THEME_MODE: label = DSTEXT_SETTINGS_THEME; value = Launcher_ThemeModeName(); break;
+        case SETTINGS_THEME_MODE: label = DSTEXT_SETTINGS_THEME; value = launcher_auto_theme ? Launcher_SettingsText(SETTINGS_TEXT_AUTO) : Launcher_ThemeModeName(); break;
         case SETTINGS_THEME: label = DSTEXT_SETTINGS_COLOUR; value = Launcher_ThemeName(); break;
         case SETTINGS_LOAD_STYLE: label = DSTEXT_SETTINGS_LOAD_STYLE; value = ">"; break;
-        case SETTINGS_HIDE_SYSTEM: label = DSTEXT_SETTINGS_HIDE_SYSTEM; value = Launcher_OnOffText(launcher_hide_system_files); break;
-        case SETTINGS_LIST_FOLDERS: label = DSTEXT_SETTINGS_LIST_FOLDERS; value = Launcher_OnOffText(launcher_list_folders); break;
         case SETTINGS_CLEAN_LIST: label = DSTEXT_SETTINGS_CLEAN_LIST; value = Launcher_OnOffText(launcher_clean_list); break;
-        case SETTINGS_WRAP_AROUND: label = (gl_select_lang == THAI_CP_FIRST || gl_select_lang == 0xE2E2) ? Launcher_MotionText(13) : DSTEXT_SETTINGS_WRAP_AROUND; value = Launcher_OnOffText(launcher_wrap_around); break;
+        case SETTINGS_HIDE_SYSTEM: label = DSTEXT_SETTINGS_HIDE_SYSTEM; value = Launcher_OnOffText(launcher_hide_system_files); break;
+        case SETTINGS_START_ENABLED: label = DSTEXT_SETTINGS_START_SCREEN; value = Launcher_StartEnabledText(); break;
+        case SETTINGS_LIST_FOLDERS: label = DSTEXT_SETTINGS_LIST_FOLDERS; value = Launcher_OnOffText(launcher_list_folders); break;
+        case SETTINGS_WRAP_AROUND: label = Launcher_SettingsText(SETTINGS_TEXT_WRAP); value = Launcher_OnOffText(launcher_wrap_around); break;
         case SETTINGS_ANIMATIONS: label = Launcher_MotionText(0); value = Launcher_OnOffText(launcher_carousel_animations); break;
         case SETTINGS_SIDE_SIZE: label = Launcher_MotionText(1); value = Launcher_MotionText(launcher_carousel_equal_sides ? 3 : 2); break;
         case SETTINGS_BOOT_ENGINE: label = DSTEXT_SETTINGS_BOOT_ENGINE; value = Launcher_EngineText(); break;
         case SETTINGS_AUTO_SAVE: label = DSTEXT_SETTINGS_AUTO_SAVE; value = Launcher_OnOffText(gl_auto_save_sel); break;
-        case SETTINGS_START_ENABLED: label = DSTEXT_SETTINGS_START_SCREEN; value = Launcher_StartEnabledText(); break;
         case SETTINGS_BOOT_TO: label = DSTEXT_SETTINGS_BOOT_TO; value = Launcher_BootToText(); break;
-        case SETTINGS_START_SOURCE: label = DSTEXT_SETTINGS_START_SCREEN; value = Launcher_StartSourceText(); break;
+        case SETTINGS_START_SOURCE: label = Launcher_SettingsText(SETTINGS_TEXT_FEATURED); value = Launcher_StartSourceText(); break;
         case SETTINGS_AUTO_START: label = DSTEXT_SETTINGS_QUICK_START; value = Launcher_AutoStartText(); break;
         case SETTINGS_ADDON_SETTINGS: label = DSTEXT_SETTINGS_ADDON; value = ">"; break;
         case SETTINGS_BOOT_MODE: label = DSTEXT_SETTINGS_BOOT_MODE; value = Launcher_BootModeText(); break;
@@ -10504,6 +10550,12 @@ static void Launcher_SettingsGetLine(u32 item, char *out, u32 out_size)
         case SETTINGS_BACKUP_SAVES: label = DSTEXT_SETTINGS_BACKUP_SAVES; value = Launcher_OnOffText(gl_toggle_backup); break;
         case SETTINGS_LED_SETTINGS: label = DSTEXT_SETTINGS_LED; value = ">"; break;
         case SETTINGS_HELP: label = DSTEXT_SETTINGS_HELP; value = ">"; break;
+        case SETTINGS_VIEW_OPTIONS: label = Launcher_SettingsText(SETTINGS_TEXT_VIEW_OPTIONS); value = ">"; break;
+        case SETTINGS_ART_POSITION:
+            label = Launcher_SettingsText(SETTINGS_TEXT_ART_POSITION);
+            value = gl_show_Thumbnail == LAUNCHER_VIEW_VERTICAL ? Launcher_VerticalSideText() :
+                gl_show_Thumbnail == LAUNCHER_VIEW_HORIZONTAL ? Launcher_HorizontalSideText() : Launcher_ListArtPositionText();
+            break;
         default: break;
     }
 
@@ -10684,6 +10736,28 @@ static void Launcher_SettingsDrawList(const char *title, u32 total, u32 selected
     Launcher_SettingsDrawRowsOnly(total, selected, top, get_line);
 }
 
+/* Preserve existing glyph pixels while changing only the top-bar artwork.
+   Custom palettes with different body art/text still require a complete repaint. */
+static u32 Launcher_SettingsRefreshColour(const u16 *old_bg, const u16 *old_top,
+                                         u16 old_text, u16 old_top_text)
+{
+    const u16 *bg = (const u16*)gImage_SET;
+    const u16 *top = Launcher_GetThemeTopForBase(bg);
+    volatile u16 *screen = (volatile u16*)0x06000000;
+    u32 i, count = LAUNCHER_TOP_BAR_HEIGHT * 240;
+    if(old_text != gl_color_text || old_top_text != gl_color_topbar_text ||
+       (old_bg != bg && memcmp(old_bg + count, bg + count, (240 * 160 - count) * 2)))
+        return 1;
+    if(!old_top) old_top = old_bg;
+    if(!top) top = bg;
+    VBlankIntrWait();
+    for(i = 0; i < count; i++)
+        if(old_top[i] != top[i] && screen[i] == old_top[i]) screen[i] = top[i];
+    launcher_current_theme_bg = bg;
+    launcher_current_topbar_bg = Launcher_GetThemeTopForBase(bg);
+    return 0;
+}
+
 static void Launcher_SettingsDrawPopupEx(const char *title, u32 total, u32 selected, u32 top, void (*get_line)(u32,char*,u32), u32 row_y0)
 {
     u32 i;
@@ -10695,7 +10769,7 @@ static void Launcher_SettingsDrawPopupEx(const char *title, u32 total, u32 selec
     const u32 h = 110;
     const u32 line_h = 12;
 
-    DrawPic((u16*)gImage_MENU, x, y, w, h, 1, 0, 1);
+    Launcher_DrawPopupPanel(x, y);
     DrawHZText12((TCHAR*)title, 0, x + (w - DrawText12VisibleLength((char*)title) * 6) / 2, y + 7, gl_color_text, 1);
 
     if(top > 0)
@@ -10887,12 +10961,17 @@ static void Launcher_WaitForPopupButton(void)
 
 static void Launcher_ShowStyleMessage(const char *line1, const char *line2, const char *line3)
 {
-    DrawPic((u16*)gImage_MENU, 36, 25, 168, 110, 1, 0, 1);
-    DrawHZText12((TCHAR*)line1, 0, 47, 45, gl_color_text, 1);
-    if(line2)
-        DrawHZText12((TCHAR*)line2, 0, 47, 63, gl_color_text, 1);
-    if(line3)
-        DrawHZText12((TCHAR*)line3, 0, 47, 81, gl_color_text, 1);
+    const char *lines[3] = {line1, line2, line3};
+    u32 count = 0, i, y;
+    for(i = 0; i < 3; i++) if(lines[i] && lines[i][0]) count++;
+    y = 25 + (110 - (count ? count * 18 - 6 : 0)) / 2;
+    Launcher_DrawPopupPanel(36, 25);
+    for(i = 0; i < 3; i++)
+        if(lines[i] && lines[i][0])
+        {
+            DrawHZText12((TCHAR*)lines[i], 0, 47, y, gl_color_text, 1);
+            y += 18;
+        }
 }
 
 static u32 Launcher_PrepareStyleKernel(const char *name)
@@ -10902,7 +10981,7 @@ static u32 Launcher_PrepareStyleKernel(const char *name)
     u16 keysdown;
 
     Launcher_StyleDisplayName(name, display_name, sizeof(display_name));
-    Launcher_ShowStyleMessage(DSTEXT_PREPARE_THEME_QUESTION, display_name, DSTEXT_A_OK_B_CANCEL);
+    Launcher_ShowStyleMessage(DSTEXT_PREPARE_THEME_QUESTION, display_name, NULL);
 
     while(1)
     {
@@ -10919,7 +10998,7 @@ static u32 Launcher_PrepareStyleKernel(const char *name)
             if(Stage_kernel_update(style_path))
                 Launcher_ShowStyleMessage(DSTEXT_THEME_READY, DSTEXT_REBOOT_HOLD_R, DSTEXT_TO_INSTALL_IT);
             else
-                Launcher_ShowStyleMessage(DSTEXT_PREPARATION_FAILED, DSTEXT_A_OK_B_CANCEL, NULL);
+                Launcher_ShowStyleMessage(DSTEXT_PREPARATION_FAILED, NULL, NULL);
             Launcher_WaitForPopupButton();
             launcher_force_full_redraw = 1;
             return 1;
@@ -10967,11 +11046,12 @@ static void Launcher_LoadStylePopup(void)
 
         if(keysdown & KEY_DOWN)
         {
-            if(selected + 1 < total)
+            if(Launcher_MenuCanMove(selected, total, 1))
             {
                 u32 old_selected = selected;
                 u32 old_top = top;
-                selected++;
+                selected = Launcher_MenuMove(selected, total, 1);
+                    top = Launcher_MenuTop(selected, top, visible);
                 if(selected >= top + visible)
                     top = selected - visible + 1;
                 UIAudio_PlaySfx(UI_SFX_MOVE);
@@ -10980,11 +11060,12 @@ static void Launcher_LoadStylePopup(void)
         }
         else if(keysdown & KEY_UP)
         {
-            if(selected > 0)
+            if(Launcher_MenuCanMove(selected, total, -1))
             {
                 u32 old_selected = selected;
                 u32 old_top = top;
-                selected--;
+                selected = Launcher_MenuMove(selected, total, -1);
+                    top = Launcher_MenuTop(selected, top, visible);
                 if(selected < top)
                     top = selected;
                 UIAudio_PlaySfx(UI_SFX_MOVE);
@@ -11214,12 +11295,13 @@ static void Launcher_SettingsPopupToggleEx(const char *title, u32 total, void (*
             }
             if((keysdown & KEY_DOWN) || ((keysrepeat & KEY_DOWN) && scroll_delay == 0))
             {
-                if(selected + 1 < total)
+                if(Launcher_MenuCanMove(selected, total, 1))
                 {
                     u32 old_selected = selected;
                     u32 old_top = top;
                     u32 first_press = (keysdown & KEY_DOWN) ? 1 : 0;
-                    selected++;
+                    selected = Launcher_MenuMove(selected, total, 1);
+                    top = Launcher_MenuTop(selected, top, visible);
                     if(selected >= top + visible)
                         top = selected - visible + 1;
                     UIAudio_PlaySfx(UI_SFX_MOVE);
@@ -11235,12 +11317,13 @@ static void Launcher_SettingsPopupToggleEx(const char *title, u32 total, void (*
             }
             else if((keysdown & KEY_UP) || ((keysrepeat & KEY_UP) && scroll_delay == 0))
             {
-                if(selected > 0)
+                if(Launcher_MenuCanMove(selected, total, -1))
                 {
                     u32 old_selected = selected;
                     u32 old_top = top;
                     u32 first_press = (keysdown & KEY_UP) ? 1 : 0;
-                    selected--;
+                    selected = Launcher_MenuMove(selected, total, -1);
+                    top = Launcher_MenuTop(selected, top, visible);
                     if(selected < top)
                         top = selected;
                     UIAudio_PlaySfx(UI_SFX_MOVE);
@@ -11324,7 +11407,7 @@ static void Launcher_SaveUnifiedSettings(void)
     {
         f_printf(&f, "# DS Style settings\n");
         f_printf(&f, "# Edit the value after '='. Unknown lines are ignored.\n\n");
-        f_printf(&f, "# Options: Light, Dark");
+        f_printf(&f, "# Options: Light, Dark, Auto");
 #if LAUNCHER_CUSTOM_THEME_ENABLED
         f_printf(&f, ", Custom");
 #endif
@@ -11350,7 +11433,7 @@ static void Launcher_SaveUnifiedSettings(void)
         f_printf(&f, "# Clean list removes extensions/brackets and hides right-side file details in list view.\n");
         f_printf(&f, "Clean list = %s\n", launcher_clean_list ? "On" : "Off");
         f_printf(&f, "\n# Options: On, Off\n");
-        f_printf(&f, "# Wrap list moves from the last browser item to the first, and back again.\n");
+        f_printf(&f, "# Wrap list loops browsing, settings and popup menus between first and last items.\n");
         f_printf(&f, "Wrap list = %s\n", launcher_wrap_around ? "On" : "Off");
         f_printf(&f, "Remember cheats = %s\n", gl_cheat_remember ? "On" : "Off");
         f_printf(&f, "# Animations and Side size affect the two carousel views.\n");
@@ -11621,12 +11704,13 @@ static void Launcher_HotkeyPopup(const char *title, u32 sleep_hotkey)
             }
             if((keysdown & KEY_DOWN) || ((keysrepeat & KEY_DOWN) && scroll_delay == 0))
             {
-                if(selected + 1 < total)
+                if(Launcher_MenuCanMove(selected, total, 1))
                 {
                     u32 old_selected = selected;
                     u32 old_top = top;
                     u32 first_press = (keysdown & KEY_DOWN) ? 1 : 0;
-                    selected++;
+                    selected = Launcher_MenuMove(selected, total, 1);
+                    top = Launcher_MenuTop(selected, top, visible);
                     if(selected >= top + visible)
                         top = selected - visible + 1;
                     UIAudio_PlaySfx(UI_SFX_MOVE);
@@ -11642,12 +11726,13 @@ static void Launcher_HotkeyPopup(const char *title, u32 sleep_hotkey)
             }
             else if((keysdown & KEY_UP) || ((keysrepeat & KEY_UP) && scroll_delay == 0))
             {
-                if(selected > 0)
+                if(Launcher_MenuCanMove(selected, total, -1))
                 {
                     u32 old_selected = selected;
                     u32 old_top = top;
                     u32 first_press = (keysdown & KEY_UP) ? 1 : 0;
-                    selected--;
+                    selected = Launcher_MenuMove(selected, total, -1);
+                    top = Launcher_MenuTop(selected, top, visible);
                     if(selected < top)
                         top = selected;
                     UIAudio_PlaySfx(UI_SFX_MOVE);
@@ -11845,12 +11930,13 @@ static void Launcher_TimePopup(void)
             }
             if((keysdown & KEY_DOWN) || ((keysrepeat & KEY_DOWN) && scroll_delay == 0))
             {
-                if(selected + 1 < total)
+                if(Launcher_MenuCanMove(selected, total, 1))
                 {
                     u32 old_selected = selected;
                     u32 old_top = top;
                     u32 first_press = (keysdown & KEY_DOWN) ? 1 : 0;
-                    selected++;
+                    selected = Launcher_MenuMove(selected, total, 1);
+                    top = Launcher_MenuTop(selected, top, visible);
                     if(selected >= top + visible)
                         top = selected - visible + 1;
                     UIAudio_PlaySfx(UI_SFX_MOVE);
@@ -11866,12 +11952,13 @@ static void Launcher_TimePopup(void)
             }
             else if((keysdown & KEY_UP) || ((keysrepeat & KEY_UP) && scroll_delay == 0))
             {
-                if(selected > 0)
+                if(Launcher_MenuCanMove(selected, total, -1))
                 {
                     u32 old_selected = selected;
                     u32 old_top = top;
                     u32 first_press = (keysdown & KEY_UP) ? 1 : 0;
-                    selected--;
+                    selected = Launcher_MenuMove(selected, total, -1);
+                    top = Launcher_MenuTop(selected, top, visible);
                     if(selected < top)
                         top = selected;
                     UIAudio_PlaySfx(UI_SFX_MOVE);
@@ -11901,6 +11988,7 @@ static void Launcher_TimePopup(void)
     }
 }
 
+static void Launcher_ViewOptionsPopup(void);
 static void Launcher_SettingsToggle(u32 item, int dir)
 {
     switch(item)
@@ -12061,6 +12149,17 @@ static void Launcher_SettingsToggle(u32 item, int dir)
         case SETTINGS_LED_SETTINGS:
             Launcher_SettingsPopupToggleEx(DSTEXT_SETTINGS_LED, LED_SETTING_TOTAL, Launcher_LedSettingsGetLine, Launcher_LedSettingsToggle, 45);
             break;
+        case SETTINGS_ART_POSITION:
+            if(gl_show_Thumbnail == LAUNCHER_VIEW_VERTICAL)
+                launcher_vertical_side_align = Launcher_MenuNextAlignment(launcher_vertical_side_align, Launcher_VerticalSideOptionCount(), dir);
+            else if(gl_show_Thumbnail == LAUNCHER_VIEW_HORIZONTAL)
+                launcher_horizontal_side_align = Launcher_MenuNextAlignment(launcher_horizontal_side_align, Launcher_HorizontalSideOptionCount(), dir);
+            else launcher_list_art_position = Launcher_MenuNextAlignment(launcher_list_art_position, 3, dir);
+            Launcher_SaveUnifiedSettings();
+            break;
+        case SETTINGS_VIEW_OPTIONS:
+            Launcher_ViewOptionsPopup();
+            break;
         default:
             break;
     }
@@ -12073,7 +12172,6 @@ static u32 Launcher_SettingsItemNeedsFullRedraw(u32 item)
         case SETTINGS_TIME_SETTINGS:
         case SETTINGS_LANGUAGE:
         case SETTINGS_THEME_MODE:
-        case SETTINGS_THEME:
         case SETTINGS_LOAD_STYLE:
         case SETTINGS_ADDON_SETTINGS:
         case SETTINGS_SLEEP_HOTKEY:
@@ -12106,6 +12204,7 @@ static void Launcher_DrawHelpClock(u32 force)
     HH = UNBCD(datetime[0]&0x3F);
     MM = UNBCD(datetime[1]&0x7F);
     SS = UNBCD(datetime[2]&0x7F);
+    Launcher_QueueAutoTheme(HH);
     if(HH > 23) HH = 0;
     if(MM > 59) MM = 0;
     if(SS > 59) SS = 0;
@@ -12137,6 +12236,7 @@ static int Launcher_HelpLineShouldCenter(const char *line)
         return 1;
     return (strcmp(line, "Interface") == 0) ||
            (strcmp(line, "Artwork display") == 0) ||
+           (strcmp(line, "System files") == 0) ||
            (strcmp(line, "Start screen") == 0) ||
            (strcmp(line, "Games") == 0) ||
            (strcmp(line, "In-game options") == 0) ||
@@ -12575,63 +12675,81 @@ static void Launcher_ShowHelpTopic(u32 topic)
         "  text used by DS Style.",
         "- Sounds turns menu audio",
         "  effects on or off.",
-
-        "- Hide system keeps kernel,",
-        "  SYSTEM and computer files",
-        "  out of the SD browser.",
+        "Interface",
+        "- View options groups artwork",
+        "  and browsing preferences for",
+        "  the selected View mode.",
+        "- Clean list names can be",
+        "  turned On or Off in View",
+        "  options; Off keeps details.",
         "- List folders keeps non-game",
         "  folders in list view.",
-        "- Clean list removes file",
-        "  extensions and details.",
-        "- Wrap list cycles from the",
-        "  last browser item to first.",
-        "- Theme changes Light, Dark",
-        "  or a custom theme.",
-
+        "- Wrap around loops menus",
+        "  and settings between their",
+        "  first and last entries.",
+        "Interface",
+        "- Theme chooses Light or Dark.",
+        "  Auto uses Dark from 8 pm to",
+        "  8 am, then returns to Light.",
         "- Colour changes accent",
         "  colours across DS Style.",
         "- Load style prepares another",
-        "  kernel from SYSTEM/KERNELS.",
+        "  kernel from SYSTEM/KERNELS",
+        "  for installation.",
+        "Interface",
         "- View mode chooses List,",
         "  List + Art, Horizontal",
         "  or Vertical.",
         "- Thumbnails chooses Title",
         "  or Box artwork.",
-
+        "- Boot to chooses Start screen,",
+        "  SD, NOR, Last game, Recents",
+        "  or Favourites at startup.",
+        "System files",
+        "- Open SYSTEM in Settings to",
+        "  browse system files and saves.",
+        "- Press B to go up a folder.",
+        "  From SYSTEM, B returns to",
+        "  Settings, not the SD root.",
+        "- Hold Start on a file to",
+        "  delete it after confirming.",
+        "  Back up saves before deleting.",
+        "Artwork display",
+        "- Art position changes with",
+        "  the selected View mode.",
+        "  Only relevant options show.",
+        "- Vertical: Left, Centre or",
+        "  Right. Other artwork views:",
+        "  Top, Centre or Bottom.",
+        "- Equal side artwork is",
+        "  always centred.",
         "Artwork display",
         "- Art border draws a fine",
         "  outline around selected art.",
         "- Rounded corners softens",
         "  artwork corners.",
-        "- Vertical side aligns the",
-        "  small artwork above and",
-        "  below the selected item.",
-        "",
-
-        "- Horizontal side aligns the",
-        "  small artwork left and",
-        "  right of the selected item.",
-        "- List art places the preview",
-        "  at the top, centre or bottom",
-        "  in List + Art view.",
-        "- Boot to chooses Start, SD,",
-        "  NOR, Last game, Recents",
-        "  or Favourites at startup.",
-
-        "@motion.0", "@motion.1", "@motion.2",
-        "@motion.3", "@motion.4", "@motion.5",
-        "@motion.6", "@motion.7", "@motion.8",
-
+        "  No Start screen keeps the",
+        "  framed Start artwork square.",
+        "- View options also contains",
+        "  List folders and Animations.",
+        "@motion.0",
+        "@motion.1",
+        "@motion.2",
+        "@motion.3",
+        "@motion.4",
+        "@motion.5",
+        "@motion.6",
+        "@motion.7",
+        "@motion.8",
         "Start screen",
         "- Start screen turns the",
         "  opening screen on or off.",
-        "- The second Start screen",
-        "  option chooses Last Played",
-        "  or Favourites there.",
+        "- Boot to sets the first page.",
+        "- Featured games chooses",
+        "  Last Played or Favourites.",
         "- Quick start chooses the",
         "  boot hotkey for instantly",
         "  launching the last game.",
-
         "Games",
         "- Boot engine changes launch",
         "  handling for games.",
@@ -12641,7 +12759,6 @@ static void Launcher_ShowHelpTopic(u32 topic)
         "  RTS, Sleep and Cheats.",
         "- Boot mode chooses Clean,",
         "  Addon or Menu by default.",
-
         "In-game options",
         "- Sleep hotkey chooses the",
         "  in-game sleep command.",
@@ -12651,7 +12768,6 @@ static void Launcher_ShowHelpTopic(u32 topic)
         "  intro before a game starts.",
         "- Backup saves keeps copies",
         "  of save files in BACKUP.",
-
         "Hardware",
         "- Mode B chooses Rumble, RAM",
         "  or Link behaviour with the",
@@ -12659,7 +12775,8 @@ static void Launcher_ShowHelpTopic(u32 topic)
         "- In-game RTC supports clocks",
         "  in compatible games.",
         "- LED settings changes the",
-        "  cartridge light behaviour."
+        "  cartridge light behaviour.",
+        ""
     };
     static const char *const artwork_lines[] =
     {
@@ -12696,9 +12813,9 @@ static void Launcher_ShowHelpTopic(u32 topic)
         "Credits",
         "Original kernel source by",
         "EZ-FLASH.",
-        "Thai language support by",
-        "aidiadayo.",
+        "Thai support by aidiadayo.",
         "Contributions by Merkin.",
+        "Contributions by timdmackey.",
         "PogoShell integration",
         "inherited from Simple by",
         "Sterophonick."
@@ -12741,6 +12858,11 @@ static void Launcher_ShowHelpBOnly(void)
         VBlankIntrWait();
         UIAudio_Update();
         Launcher_DrawSettingsClock(0);
+        if(Launcher_ApplyPendingAutoTheme())
+        {
+            Launcher_DrawThemeBGFull((const u16*)gImage_SET);
+            dirty = 1;
+        }
         if(scroll_delay > 0)
             scroll_delay--;
 
@@ -12771,12 +12893,13 @@ static void Launcher_ShowHelpBOnly(void)
             }
             if((keysdown & KEY_DOWN) || ((keysrepeat & KEY_DOWN) && scroll_delay == 0))
             {
-                if(selected + 1 < total)
+                if(Launcher_MenuCanMove(selected, total, 1))
                 {
                     u32 old_selected = selected;
                     u32 old_top = top;
                     u32 first_press = (keysdown & KEY_DOWN) ? 1 : 0;
-                    selected++;
+                    selected = Launcher_MenuMove(selected, total, 1);
+                    top = Launcher_MenuTop(selected, top, visible);
                     if(selected >= top + visible)
                         top = selected - visible + 1;
                     UIAudio_PlaySfx(UI_SFX_MOVE);
@@ -12793,12 +12916,13 @@ static void Launcher_ShowHelpBOnly(void)
             }
             else if((keysdown & KEY_UP) || ((keysrepeat & KEY_UP) && scroll_delay == 0))
             {
-                if(selected > 0)
+                if(Launcher_MenuCanMove(selected, total, -1))
                 {
                     u32 old_selected = selected;
                     u32 old_top = top;
                     u32 first_press = (keysdown & KEY_UP) ? 1 : 0;
-                    selected--;
+                    selected = Launcher_MenuMove(selected, total, -1);
+                    top = Launcher_MenuTop(selected, top, visible);
                     if(selected < top)
                         top = selected;
                     UIAudio_PlaySfx(UI_SFX_MOVE);
@@ -12958,6 +13082,7 @@ typedef struct
     int y[4];
     int sx[4];
     int sy[4];
+    int arm, thickness;
 } LauncherStartCorners;
 
 typedef struct
@@ -12985,9 +13110,16 @@ static LauncherStartBox Launcher_GetStartBox(u32 item)
     return box;
 }
 
+static LauncherStartBox Launcher_GetStartSettingsIconMarkerBox(void);
+
 static void Launcher_GetStartCornerPos(u32 item, int corner, int *x, int *y, int *sx, int *sy)
 {
     LauncherStartBox box = Launcher_GetStartBox(item);
+
+    if(item == 3 && !LAUNCHER_START_SETTINGS_TEXT_ENABLED)
+    {
+        box = Launcher_GetStartSettingsIconMarkerBox();
+    }
 
     switch(corner)
     {
@@ -13017,6 +13149,7 @@ static void Launcher_GetStartCornerPos(u32 item, int corner, int *x, int *y, int
             break;
     }
 
+    if(item == 3 && !LAUNCHER_START_SETTINGS_TEXT_ENABLED) return;
     /* Pixel nudges to match the baked-in boxes in START.bmp. */
     if(item == 0 && corner >= 2)
         (*y)--;
@@ -13059,30 +13192,38 @@ static void Launcher_GetStartCornersForItem(u32 item, LauncherStartCorners *corn
     if(!corners)
         return;
 
+    corners->arm = (item == 3 && !LAUNCHER_START_SETTINGS_TEXT_ENABLED) ? 6 : 9;
+    corners->thickness = (item == 3 && !LAUNCHER_START_SETTINGS_TEXT_ENABLED) ? 2 : 3;
     for(corner = 0; corner < 4; corner++)
         Launcher_GetStartCornerPos(item, corner, &(corners->x[corner]), &(corners->y[corner]), &(corners->sx[corner]), &(corners->sy[corner]));
 }
 
-static void Launcher_DrawStartCornerAt(int x, int y, int sx, int sy, u16 colour)
+static void Launcher_DrawStartCornerAt(int x, int y, int sx, int sy, int arm, int thickness, u16 colour)
 {
-    int hx = (sx < 0) ? (x - 8) : x;
-    int hy = (sy < 0) ? (y - 2) : y;
-    int vx = (sx < 0) ? (x - 2) : x;
-    int vy = (sy < 0) ? (y - 8) : y;
+    int hx = (sx < 0) ? (x - arm + 1) : x;
+    int hy = (sy < 0) ? (y - thickness + 1) : y;
+    int vx = (sx < 0) ? (x - thickness + 1) : x;
+    int vy = (sy < 0) ? (y - arm + 1) : y;
 
-    Launcher_ClearClip(hx, hy, 9, 3, colour);
-    Launcher_ClearClip(vx, vy, 3, 9, colour);
+    /* A pale tint of the selected accent, not a separate hard-coded palette. */
+    u16 highlight = (31 - ((31 - (colour & 31)) >> 2)) |
+                    ((31 - ((31 - ((colour >> 5) & 31)) >> 2)) << 5) |
+                    ((31 - ((31 - ((colour >> 10) & 31)) >> 2)) << 10);
+    Launcher_ClearClip(hx - 1, hy - 1, arm + 2, thickness + 2, highlight);
+    Launcher_ClearClip(vx - 1, vy - 1, thickness + 2, arm + 2, highlight);
+    Launcher_ClearClip(hx, hy, arm, thickness, colour);
+    Launcher_ClearClip(vx, vy, thickness, arm, colour);
 }
 
-static void Launcher_RestoreStartCornerAt(int x, int y, int sx, int sy)
+static void Launcher_RestoreStartCornerAt(int x, int y, int sx, int sy, int arm, int thickness)
 {
-    int hx = (sx < 0) ? (x - 8) : x;
-    int hy = (sy < 0) ? (y - 2) : y;
-    int vx = (sx < 0) ? (x - 2) : x;
-    int vy = (sy < 0) ? (y - 8) : y;
+    int hx = (sx < 0) ? (x - arm + 1) : x;
+    int hy = (sy < 0) ? (y - thickness + 1) : y;
+    int vx = (sx < 0) ? (x - thickness + 1) : x;
+    int vy = (sy < 0) ? (y - arm + 1) : y;
 
-    Launcher_RestoreBGClip((const u16*)gImage_START, hx, hy, 9, 3);
-    Launcher_RestoreBGClip((const u16*)gImage_START, vx, vy, 3, 9);
+    Launcher_RestoreBGClip((const u16*)gImage_START, hx - 1, hy - 1, arm + 2, thickness + 2);
+    Launcher_RestoreBGClip((const u16*)gImage_START, vx - 1, vy - 1, thickness + 2, arm + 2);
 }
 
 static void Launcher_RestoreStartMarkerBox(LauncherStartBox box)
@@ -13093,6 +13234,8 @@ static void Launcher_RestoreStartMarkerBox(LauncherStartBox box)
 static LauncherStartBox Launcher_GetStartSettingsIconMarkerBox(void)
 {
     LauncherStartBox box = Launcher_GetStartBox(3);
+    /* Match the larger buttons' overlap. The corner anchors are
+       (109,142)..(131,157), with the lower pale edge at y=158. */
     box.x -= 2;
     box.y -= 3;
     box.w += 5;
@@ -13158,7 +13301,7 @@ static void Launcher_DrawStartCornersAtPositions(const LauncherStartCorners *cor
         return;
 
     for(corner = 0; corner < 4; corner++)
-        Launcher_DrawStartCornerAt(corners->x[corner], corners->y[corner], corners->sx[corner], corners->sy[corner], colour);
+        Launcher_DrawStartCornerAt(corners->x[corner], corners->y[corner], corners->sx[corner], corners->sy[corner], corners->arm, corners->thickness, colour);
 }
 
 static void Launcher_StartCornerBounds(int x, int y, int sx, int sy, int *left, int *top, int *w, int *h)
@@ -13235,7 +13378,7 @@ static void Launcher_RestoreStartCorners(u32 item)
     if(LAUNCHER_START_SELECTION_SHAPE == LAUNCHER_START_SELECTION_OFF)
         return;
 
-    if((item == 3) && !LAUNCHER_START_SETTINGS_TEXT_ENABLED)
+    if((item == 3) && !LAUNCHER_START_SETTINGS_TEXT_ENABLED && LAUNCHER_START_SELECTION_SHAPE != 0)
     {
         Launcher_RestoreStartMarkerBox(Launcher_GetStartSettingsIconMarkerBox());
         return;
@@ -13251,60 +13394,15 @@ static void Launcher_RestoreStartCorners(u32 item)
     {
         int x, y, sx, sy;
         Launcher_GetStartCornerPos(item, corner, &x, &y, &sx, &sy);
-        Launcher_RestoreStartCornerAt(x, y, sx, sy);
+        Launcher_RestoreStartCornerAt(x, y, sx, sy,
+            (item == 3 && !LAUNCHER_START_SETTINGS_TEXT_ENABLED) ? 6 : 9,
+            (item == 3 && !LAUNCHER_START_SETTINGS_TEXT_ENABLED) ? 2 : 3);
     }
 }
 
-static int Launcher_LerpStartCorner(int from, int to, int frame, int frames)
-{
-    int delta = to - from;
+static void Launcher_DrawStartCorners(u32 item, u32 selected);
+#include "start_selection_motion.h"
 
-    if(delta >= 0)
-        return from + ((delta * frame) + (frames / 2)) / frames;
-    return from + ((delta * frame) - (frames / 2)) / frames;
-}
-
-static void Launcher_AnimateStartSelection(u32 old_selected, u32 selected)
-{
-    LauncherStartCorners from;
-    LauncherStartCorners to;
-    LauncherStartCorners current;
-    LauncherStartCornerSave saved;
-    const int frames = 7;
-    int frame;
-    int corner;
-    int have_saved = 0;
-
-    if(old_selected == selected)
-        return;
-
-    Launcher_GetStartCornersForItem(old_selected, &from);
-    Launcher_GetStartCornersForItem(selected, &to);
-
-    for(frame = 1; frame <= frames; frame++)
-    {
-        VBlankIntrWait();
-        UIAudio_Update();
-
-        if(have_saved)
-            Launcher_RestoreSavedStartCorners(&saved);
-
-        for(corner = 0; corner < 4; corner++)
-        {
-            current.x[corner] = Launcher_LerpStartCorner(from.x[corner], to.x[corner], frame, frames);
-            current.y[corner] = Launcher_LerpStartCorner(from.y[corner], to.y[corner], frame, frames);
-            current.sx[corner] = to.sx[corner];
-            current.sy[corner] = to.sy[corner];
-        }
-
-        Launcher_SaveStartCornersUnder(&current, &saved);
-        Launcher_DrawStartCornersAtPositions(&current, gl_color_selectBG_sd);
-        have_saved = 1;
-    }
-
-    if(have_saved)
-        Launcher_RestoreSavedStartCorners(&saved);
-}
 
 static void Launcher_DrawStartCorners(u32 item, u32 selected)
 {
@@ -13319,7 +13417,7 @@ static void Launcher_DrawStartCorners(u32 item, u32 selected)
     if(LAUNCHER_START_SELECTION_SHAPE == LAUNCHER_START_SELECTION_OFF)
         return;
 
-    if((item == 3) && !LAUNCHER_START_SETTINGS_TEXT_ENABLED)
+    if((item == 3) && !LAUNCHER_START_SETTINGS_TEXT_ENABLED && LAUNCHER_START_SELECTION_SHAPE != 0)
     {
         Launcher_DrawStartMarkerOutline(Launcher_GetStartSettingsIconMarkerBox(), colour);
         return;
@@ -13335,7 +13433,9 @@ static void Launcher_DrawStartCorners(u32 item, u32 selected)
     {
         int x, y, sx, sy;
         Launcher_GetStartCornerPos(item, corner, &x, &y, &sx, &sy);
-        Launcher_DrawStartCornerAt(x, y, sx, sy, colour);
+        Launcher_DrawStartCornerAt(x, y, sx, sy,
+            (item == 3 && !LAUNCHER_START_SETTINGS_TEXT_ENABLED) ? 6 : 9,
+            (item == 3 && !LAUNCHER_START_SETTINGS_TEXT_ENABLED) ? 2 : 3, colour);
     }
 }
 
@@ -13393,6 +13493,7 @@ static void Launcher_DrawStartLastThumb(int x, int y)
         }
     }
 
+    launcher_spinner.start_icon = !cached_preview && !have_thumb && recent_name[0] && !Launcher_IsGbaFilename(recent_name);
     /* Restore the thumbnail area from the baked start-screen background only.
        Do not draw a black frame around it; the selected-box corner highlight
        supplies the only outline on this screen. */
@@ -13657,8 +13758,16 @@ static void Launcher_DrawStartOption(u32 item, u32 selected)
     switch(item)
     {
         case 0:
-            Launcher_DrawStartCorners(item, selected);
-            Launcher_DrawStartLastTitle(selected);
+            if(LAUNCHER_START_SELECTION_SHAPE == 0)
+            {
+                Launcher_DrawStartLastTitle(selected);
+                Launcher_DrawStartCorners(item, selected);
+            }
+            else
+            {
+                Launcher_DrawStartCorners(item, selected);
+                Launcher_DrawStartLastTitle(selected);
+            }
             return;
         case 1:
             snprintf(msg, sizeof(msg), "%s", DSTEXT_SD_CARD);
@@ -13714,6 +13823,7 @@ static void Launcher_DrawStartClock(u32 force)
     HH = UNBCD(datetime[0] & 0x3F);
     MM = UNBCD(datetime[1] & 0x7F);
     SS = UNBCD(datetime[2] & 0x7F);
+    Launcher_QueueAutoTheme(HH);
     if(HH > 23) HH = 0;
     if(MM > 59) MM = 0;
     if(SS > 59) SS = 0;
@@ -13751,6 +13861,7 @@ static void Launcher_DrawSettingsClock(u32 force)
     HH = UNBCD(datetime[0] & 0x3F);
     MM = UNBCD(datetime[1] & 0x7F);
     SS = UNBCD(datetime[2] & 0x7F);
+    Launcher_QueueAutoTheme(HH);
     if(HH > 23) HH = 0;
     if(MM > 59) MM = 0;
     if(SS > 59) SS = 0;
@@ -13840,8 +13951,8 @@ static void Launcher_DrawStartWindow(u32 selected)
 {
     if(launcher_start_window_preserved)
     {
-        Launcher_ClearWithThemeBG((const u16*)gImage_START, 0, LAUNCHER_TOP_BAR_HEIGHT, 240, 160 - LAUNCHER_TOP_BAR_HEIGHT);
         launcher_start_window_preserved = 0;
+        return; /* The modal popup restored its exact underlay. */
     }
     else
     {
@@ -13852,10 +13963,9 @@ static void Launcher_DrawStartWindow(u32 selected)
 
     Launcher_DrawStartLastThumb(LAUNCHER_START_LAST_THUMB_X, LAUNCHER_START_LAST_THUMB_Y);
 
-    Launcher_DrawStartOption(0, selected);
-    Launcher_DrawStartOption(1, selected);
-    Launcher_DrawStartOption(2, selected);
-    Launcher_DrawStartOption(3, selected);
+    for(u32 item = 0; item < 4; item++)
+        if(item != selected) Launcher_DrawStartOption(item, selected);
+    Launcher_DrawStartOption(selected, selected);
     Launcher_StartPreviewWarmAdjacent();
 }
 
@@ -13873,9 +13983,14 @@ static void Launcher_UpdateStartSelection(u32 old_selected, u32 selected)
 
     if(old_selected != selected)
     {
+        if(LAUNCHER_START_SELECTION_ANIMATE && LAUNCHER_START_SELECTION_SHAPE == 0 &&
+           launcher_start_motion)
+        {
+            Launcher_StartMotionBegin(old_selected, selected);
+            return;
+        }
+        Launcher_StartMotionSettle();
         Launcher_RestoreStartCorners(old_selected);
-        if(LAUNCHER_START_SELECTION_ANIMATE && LAUNCHER_START_SELECTION_SHAPE == 0)
-            Launcher_AnimateStartSelection(old_selected, selected);
 
         Launcher_DrawStartCorners(old_selected, selected);
         Launcher_DrawStartCorners(selected, selected);
@@ -13889,10 +14004,14 @@ static void Launcher_UpdateStartSelection(u32 old_selected, u32 selected)
 
 static u32 Launcher_StartWindow(void)
 {
+    LauncherStartMotion *motion = &launcher_start_motion_storage;
     u32 selected = launcher_start_selected;
     u32 old_selected = selected;
     u32 new_selected;
     u32 dirty = 1;
+
+    memset(motion, 0, sizeof(*motion));
+    launcher_start_motion = motion;
 
     /* Keep p_recently_play[0] primed with the most recent game whenever
        the start screen is entered.  The Last Played boot menu path uses
@@ -13910,6 +14029,12 @@ static u32 Launcher_StartWindow(void)
         VBlankIntrWait();
         UIAudio_Update();
         Launcher_DrawStartClock(0);
+        if(Launcher_ApplyPendingAutoTheme())
+        {
+            Launcher_StartMotionSettle();
+            launcher_start_window_preserved = 0;
+            dirty = 1;
+        }
 
         if(dirty)
         {
@@ -13917,8 +14042,9 @@ static u32 Launcher_StartWindow(void)
             Launcher_DrawStartWindow(selected);
             dirty = 0;
         }
-        else
+        else if(!motion->active)
             Launcher_UpdateStartTitleScroll(selected);
+        Launcher_StartMotionTick();
 
         scanKeys();
         {
@@ -13978,6 +14104,7 @@ static u32 Launcher_StartWindow(void)
                 {
                     if(Launcher_CanCycleStartFavourite())
                     {
+                        Launcher_StartMotionSettle();
                         Launcher_CycleStartFavourite(1);
                         Launcher_ResetStartTitleScroll();
                         UIAudio_PlaySfx(UI_SFX_MOVE);
@@ -14003,6 +14130,7 @@ static u32 Launcher_StartWindow(void)
                 {
                     if(Launcher_CanCycleStartFavourite())
                     {
+                        Launcher_StartMotionSettle();
                         Launcher_CycleStartFavourite(-1);
                         Launcher_ResetStartTitleScroll();
                         UIAudio_PlaySfx(UI_SFX_MOVE);
@@ -14024,6 +14152,7 @@ static u32 Launcher_StartWindow(void)
             }
             else if(keysdown & KEY_SELECT)
             {
+                Launcher_StartMotionSettle();
                 Launcher_CycleStartSource();
                 Launcher_ResetStartTitleScroll();
                 Launcher_DrawStartLastThumb(LAUNCHER_START_LAST_THUMB_X, LAUNCHER_START_LAST_THUMB_Y);
@@ -14037,8 +14166,10 @@ static u32 Launcher_StartWindow(void)
             }
             else if(keysdown & (KEY_A | KEY_START))
             {
-                UIAudio_PlaySfx(UI_SFX_ACCEPT);
+                if(selected != 0) UIAudio_PlaySfx(UI_SFX_ACCEPT);
                 Launcher_WaitForMenuKeyRelease(KEY_A | KEY_START);
+                Launcher_StartMotionSettle();
+                launcher_start_motion = 0;
                 launcher_start_selected = selected;
                 if(selected == 0)
                     return 4; /* Last Played */
@@ -14057,12 +14188,22 @@ typedef enum
     SETTINGS_CATEGORY_INTERFACE = 0,
     SETTINGS_CATEGORY_GAMES,
     SETTINGS_CATEGORY_HARDWARE,
+    SETTINGS_CATEGORY_SYSTEM,
     SETTINGS_CATEGORY_HELP,
-    SETTINGS_CATEGORY_TOTAL
+    SETTINGS_CATEGORY_TOTAL,
+    SETTINGS_CATEGORY_VIEW = SETTINGS_CATEGORY_TOTAL,
+    SETTINGS_CATEGORY_STORAGE_TOTAL
 } LauncherSettingsCategory;
 
-static const u32 launcher_settings_interface_items[] = { SETTINGS_TIME_SETTINGS, SETTINGS_CLOCK_FORMAT, SETTINGS_LANGUAGE, SETTINGS_SOUNDS, SETTINGS_HIDE_SYSTEM, SETTINGS_LIST_FOLDERS, SETTINGS_CLEAN_LIST, SETTINGS_WRAP_AROUND, SETTINGS_THEME_MODE, SETTINGS_THEME, SETTINGS_LOAD_STYLE, SETTINGS_VIEW_MODE, SETTINGS_ANIMATIONS, SETTINGS_SIDE_SIZE, SETTINGS_THUMBNAILS, SETTINGS_ART_BORDER,
-    SETTINGS_ROUNDED_CORNERS, SETTINGS_VERTICAL_SIDE, SETTINGS_HORIZONTAL_SIDE, SETTINGS_LIST_ART_POSITION, SETTINGS_START_ENABLED, SETTINGS_BOOT_TO, SETTINGS_START_SOURCE };
+static const u32 launcher_settings_interface_items[] = {
+    SETTINGS_TIME_SETTINGS, SETTINGS_CLOCK_FORMAT, SETTINGS_LANGUAGE, SETTINGS_SOUNDS,
+    SETTINGS_THEME_MODE, SETTINGS_THEME, SETTINGS_LOAD_STYLE, SETTINGS_VIEW_MODE,
+    SETTINGS_VIEW_OPTIONS, SETTINGS_WRAP_AROUND, SETTINGS_START_ENABLED, SETTINGS_BOOT_TO, SETTINGS_START_SOURCE };
+static const u32 launcher_settings_view_items[] = {
+    SETTINGS_HIDE_SYSTEM, SETTINGS_CLEAN_LIST, SETTINGS_LIST_FOLDERS, SETTINGS_THUMBNAILS,
+    SETTINGS_ART_POSITION, SETTINGS_ART_BORDER, SETTINGS_ROUNDED_CORNERS,
+    SETTINGS_ANIMATIONS, SETTINGS_SIDE_SIZE };
+static u32 launcher_settings_visible_view[sizeof(launcher_settings_view_items) / sizeof(launcher_settings_view_items[0])];
 static const u32 launcher_settings_games_items[] = { SETTINGS_BOOT_ENGINE, SETTINGS_AUTO_SAVE, SETTINGS_AUTO_START, SETTINGS_ADDON_SETTINGS, SETTINGS_BOOT_MODE, SETTINGS_SLEEP_HOTKEY, SETTINGS_ADDON_HOTKEY, SETTINGS_FULL_INTRO, SETTINGS_BACKUP_SAVES, SETTINGS_REMEMBER_CHEATS };
 static const u32 launcher_settings_hardware_items[] = { SETTINGS_MODE_B, SETTINGS_INGAME_RTC, SETTINGS_LED_SETTINGS };
 
@@ -14071,8 +14212,8 @@ static u32 launcher_settings_active_total = 0;
 static u32 launcher_settings_main_selected = 0;
 static u32 launcher_settings_main_top = 0;
 static int launcher_settings_resume_category = -1;
-static u32 launcher_settings_category_selected[SETTINGS_CATEGORY_TOTAL];
-static u32 launcher_settings_category_top[SETTINGS_CATEGORY_TOTAL];
+static u32 launcher_settings_category_selected[SETTINGS_CATEGORY_STORAGE_TOTAL];
+static u32 launcher_settings_category_top[SETTINGS_CATEGORY_STORAGE_TOTAL];
 
 static const char *Launcher_SettingsCategoryTitle(u32 category)
 {
@@ -14081,6 +14222,8 @@ static const char *Launcher_SettingsCategoryTitle(u32 category)
         case SETTINGS_CATEGORY_INTERFACE: return DSTEXT_CATEGORY_INTERFACE;
         case SETTINGS_CATEGORY_GAMES: return DSTEXT_CATEGORY_GAMES;
         case SETTINGS_CATEGORY_HARDWARE: return DSTEXT_CATEGORY_HARDWARE;
+        case SETTINGS_CATEGORY_SYSTEM: return Launcher_SettingsText(SETTINGS_TEXT_SYSTEM);
+        case SETTINGS_CATEGORY_VIEW: return Launcher_SettingsText(SETTINGS_TEXT_VIEW_OPTIONS);
         case SETTINGS_CATEGORY_HELP: return DSTEXT_SETTINGS_HELP;
         default: return DSTEXT_SETTINGS_TITLE;
     }
@@ -14129,7 +14272,22 @@ static void Launcher_SettingsSelectCategory(u32 category)
     {
         case SETTINGS_CATEGORY_INTERFACE:
             launcher_settings_active_items = launcher_settings_interface_items;
-            launcher_settings_active_total = sizeof(launcher_settings_interface_items) / sizeof(launcher_settings_interface_items[0]);
+            launcher_settings_active_total = sizeof(launcher_settings_interface_items)/sizeof(launcher_settings_interface_items[0]);
+            break;
+        case SETTINGS_CATEGORY_VIEW:
+            {
+                u32 i, view = gl_show_Thumbnail;
+                u32 carousel = view == LAUNCHER_VIEW_HORIZONTAL || view == LAUNCHER_VIEW_VERTICAL;
+                for(i = 0; i < sizeof(launcher_settings_view_items)/sizeof(launcher_settings_view_items[0]); i++)
+                {
+                    u32 item = launcher_settings_view_items[i];
+                    if((item == SETTINGS_LIST_FOLDERS || item == SETTINGS_ANIMATIONS || item == SETTINGS_SIDE_SIZE) && !carousel) continue;
+                    if(item == SETTINGS_ART_POSITION && !(view == LAUNCHER_VIEW_LIST_ART || (carousel && !launcher_carousel_equal_sides))) continue;
+                    if(item == SETTINGS_ART_BORDER && view == LAUNCHER_VIEW_LIST) continue;
+                    launcher_settings_visible_view[launcher_settings_active_total++] = item;
+                }
+                launcher_settings_active_items = launcher_settings_visible_view;
+            }
             break;
         case SETTINGS_CATEGORY_GAMES:
             launcher_settings_active_items = launcher_settings_games_items;
@@ -14142,6 +14300,12 @@ static void Launcher_SettingsSelectCategory(u32 category)
         default:
             break;
     }
+}
+
+static void Launcher_SettingsCategoryWindow(u32 category);
+static void Launcher_ViewOptionsPopup(void)
+{
+    Launcher_SettingsCategoryWindow(SETTINGS_CATEGORY_VIEW);
 }
 
 static void Launcher_SettingsCategoryWindow(u32 category)
@@ -14170,6 +14334,11 @@ static void Launcher_SettingsCategoryWindow(u32 category)
         VBlankIntrWait();
         UIAudio_Update();
         Launcher_DrawSettingsClock(0);
+        if(Launcher_ApplyPendingAutoTheme())
+        {
+            Launcher_DrawThemeBGFull((const u16*)gImage_SET);
+            dirty = 1;
+        }
         if(scroll_delay > 0)
             scroll_delay--;
 
@@ -14208,12 +14377,13 @@ static void Launcher_SettingsCategoryWindow(u32 category)
             }
             if((keysdown & KEY_DOWN) || ((keysrepeat & KEY_DOWN) && scroll_delay == 0))
             {
-                if(selected + 1 < launcher_settings_active_total)
+                if(Launcher_MenuCanMove(selected, launcher_settings_active_total, 1))
                 {
                     u32 old_selected = selected;
                     u32 old_top = top;
                     u32 first_press = (keysdown & KEY_DOWN) ? 1 : 0;
-                    selected++;
+                    selected = Launcher_MenuMove(selected, launcher_settings_active_total, 1);
+                    top = Launcher_MenuTop(selected, top, visible);
                     if(selected >= top + visible)
                         top = selected - visible + 1;
                     UIAudio_PlaySfx(UI_SFX_MOVE);
@@ -14230,12 +14400,13 @@ static void Launcher_SettingsCategoryWindow(u32 category)
             }
             else if((keysdown & KEY_UP) || ((keysrepeat & KEY_UP) && scroll_delay == 0))
             {
-                if(selected > 0)
+                if(Launcher_MenuCanMove(selected, launcher_settings_active_total, -1))
                 {
                     u32 old_selected = selected;
                     u32 old_top = top;
                     u32 first_press = (keysdown & KEY_UP) ? 1 : 0;
-                    selected--;
+                    selected = Launcher_MenuMove(selected, launcher_settings_active_total, -1);
+                    top = Launcher_MenuTop(selected, top, visible);
                     if(selected < top)
                         top = selected;
                     UIAudio_PlaySfx(UI_SFX_MOVE);
@@ -14253,16 +14424,30 @@ static void Launcher_SettingsCategoryWindow(u32 category)
             else if(keysdown & (KEY_A | KEY_RIGHT))
             {
                 u32 changed_item = launcher_settings_active_items[selected];
+                const u16 *old_bg = (const u16*)gImage_SET;
+                const u16 *old_top = Launcher_GetThemeTopForBase(old_bg);
+                u16 old_text = gl_color_text, old_top_text = gl_color_topbar_text;
                 UIAudio_PlaySfx(UI_SFX_ACCEPT);
                 Launcher_SettingsToggle(changed_item, 1);
                 if(launcher_settings_tab_return != -1)
                 {
                     launcher_settings_category_selected[category] = selected;
                     launcher_settings_category_top[category] = top;
-                    launcher_settings_resume_category = category;
+                    if(launcher_settings_resume_category < 0) launcher_settings_resume_category = category;
                     return;
                 }
-                if(Launcher_SettingsItemNeedsFullRedraw(changed_item))
+                if(changed_item == SETTINGS_VIEW_OPTIONS || changed_item == SETTINGS_SIDE_SIZE)
+                {
+                    u32 i;
+                    Launcher_SettingsSelectCategory(category);
+                    for(i = 0; i < launcher_settings_active_total; i++)
+                        if(launcher_settings_active_items[i] == changed_item) { selected = i; break; }
+                    top = Launcher_MenuTop(selected, top, visible);
+                    dirty = 1;
+                }
+                if((changed_item == SETTINGS_THEME &&
+                    Launcher_SettingsRefreshColour(old_bg, old_top, old_text, old_top_text)) ||
+                   Launcher_SettingsItemNeedsFullRedraw(changed_item))
                     dirty = 1;
                 else
                     Launcher_SettingsDrawRowValueOnly(selected, selected, top, Launcher_SettingsActiveGetLine);
@@ -14270,16 +14455,30 @@ static void Launcher_SettingsCategoryWindow(u32 category)
             else if(keysdown & KEY_LEFT)
             {
                 u32 changed_item = launcher_settings_active_items[selected];
+                const u16 *old_bg = (const u16*)gImage_SET;
+                const u16 *old_top = Launcher_GetThemeTopForBase(old_bg);
+                u16 old_text = gl_color_text, old_top_text = gl_color_topbar_text;
                 UIAudio_PlaySfx(UI_SFX_ACCEPT);
                 Launcher_SettingsToggle(changed_item, -1);
                 if(launcher_settings_tab_return != -1)
                 {
                     launcher_settings_category_selected[category] = selected;
                     launcher_settings_category_top[category] = top;
-                    launcher_settings_resume_category = category;
+                    if(launcher_settings_resume_category < 0) launcher_settings_resume_category = category;
                     return;
                 }
-                if(Launcher_SettingsItemNeedsFullRedraw(changed_item))
+                if(changed_item == SETTINGS_VIEW_OPTIONS || changed_item == SETTINGS_SIDE_SIZE)
+                {
+                    u32 i;
+                    Launcher_SettingsSelectCategory(category);
+                    for(i = 0; i < launcher_settings_active_total; i++)
+                        if(launcher_settings_active_items[i] == changed_item) { selected = i; break; }
+                    top = Launcher_MenuTop(selected, top, visible);
+                    dirty = 1;
+                }
+                if((changed_item == SETTINGS_THEME &&
+                    Launcher_SettingsRefreshColour(old_bg, old_top, old_text, old_top_text)) ||
+                   Launcher_SettingsItemNeedsFullRedraw(changed_item))
                     dirty = 1;
                 else
                     Launcher_SettingsDrawRowValueOnly(selected, selected, top, Launcher_SettingsActiveGetLine);
@@ -14304,13 +14503,15 @@ static u32 Launcher_SettingsWindow(void)
     if(selected >= top + visible)
         top = (selected >= visible) ? (selected - visible + 1) : 0;
 
-    if(launcher_settings_resume_category >= 0 && launcher_settings_resume_category < (int)SETTINGS_CATEGORY_TOTAL)
+    if(launcher_settings_resume_category >= 0 && launcher_settings_resume_category < (int)SETTINGS_CATEGORY_STORAGE_TOTAL)
     {
         u32 resume_category = (u32)launcher_settings_resume_category;
         launcher_settings_resume_category = -1;
-        selected = resume_category;
+        selected = resume_category == SETTINGS_CATEGORY_VIEW ? SETTINGS_CATEGORY_INTERFACE : resume_category;
         launcher_settings_main_selected = selected;
         Launcher_SettingsCategoryWindow(resume_category);
+        if(resume_category == SETTINGS_CATEGORY_VIEW && launcher_settings_tab_return == -1)
+            Launcher_SettingsCategoryWindow(SETTINGS_CATEGORY_INTERFACE);
         if(launcher_settings_tab_return != -1)
         {
             int tab_return = launcher_settings_tab_return;
@@ -14325,6 +14526,11 @@ static u32 Launcher_SettingsWindow(void)
         VBlankIntrWait();
         UIAudio_Update();
         Launcher_DrawSettingsClock(0);
+        if(Launcher_ApplyPendingAutoTheme())
+        {
+            Launcher_DrawThemeBGFull((const u16*)gImage_SET);
+            dirty = 1;
+        }
         if(scroll_delay > 0)
             scroll_delay--;
 
@@ -14363,12 +14569,13 @@ static u32 Launcher_SettingsWindow(void)
             }
             if((keysdown & KEY_DOWN) || ((keysrepeat & KEY_DOWN) && scroll_delay == 0))
             {
-                if(selected + 1 < total)
+                if(Launcher_MenuCanMove(selected, total, 1))
                 {
                     u32 old_selected = selected;
                     u32 old_top = top;
                     u32 first_press = (keysdown & KEY_DOWN) ? 1 : 0;
-                    selected++;
+                    selected = Launcher_MenuMove(selected, total, 1);
+                    top = Launcher_MenuTop(selected, top, visible);
                     if(selected >= top + visible)
                         top = selected - visible + 1;
                     UIAudio_PlaySfx(UI_SFX_MOVE);
@@ -14385,12 +14592,13 @@ static u32 Launcher_SettingsWindow(void)
             }
             else if((keysdown & KEY_UP) || ((keysrepeat & KEY_UP) && scroll_delay == 0))
             {
-                if(selected > 0)
+                if(Launcher_MenuCanMove(selected, total, -1))
                 {
                     u32 old_selected = selected;
                     u32 old_top = top;
                     u32 first_press = (keysdown & KEY_UP) ? 1 : 0;
-                    selected--;
+                    selected = Launcher_MenuMove(selected, total, -1);
+                    top = Launcher_MenuTop(selected, top, visible);
                     if(selected < top)
                         top = selected;
                     UIAudio_PlaySfx(UI_SFX_MOVE);
@@ -14408,6 +14616,14 @@ static u32 Launcher_SettingsWindow(void)
             else if(keysdown & (KEY_A | KEY_RIGHT))
             {
                 UIAudio_PlaySfx(UI_SFX_ACCEPT);
+                if(selected == SETTINGS_CATEGORY_SYSTEM)
+                {
+                    launcher_settings_main_selected = selected;
+                    launcher_settings_main_top = top;
+                    launcher_settings_resume_category = -1;
+                    launcher_open_system_requested = 1;
+                    return 0;
+                }
                 if(selected == SETTINGS_CATEGORY_HELP)
                     Launcher_ShowHelpBOnly();
                 else
@@ -14447,6 +14663,8 @@ static u32 Get_path_depth(const TCHAR *path)
 //---------------------------------------------------------------------------------
 // Program entry point
 //---------------------------------------------------------------------------------
+#include "system_browser.h"
+
 int main(void) {
 
 	irqInit();
@@ -14477,7 +14695,7 @@ int main(void) {
 
 	gl_currentpage = 0x8002 ;//kernel mode
 
-	SetMode (MODE_3 | BG2_ENABLE );
+	SetMode (MODE_3 | BG2_ENABLE | 0x0080);
 
 	SD_Disable();
 	Set_RTC_status(1);
@@ -14486,20 +14704,13 @@ int main(void) {
 	Check_FW_update();
 
 
-	DrawPic((u16*)gImage_splash, 0, 0, 240, 160, 0, 0, 1);
+	Launcher_DrawPackedSplash();
 	UIAudio_Init();
 	UIAudio_PlayStartup();
-	{
-		u32 splash_wait;
-		for(splash_wait = 0; splash_wait < UIAudio_GetStartupSplashFrames(); splash_wait++)
-		{
-			VBlankIntrWait();
-			UIAudio_Update();
-		}
-	}
 	scanKeys();
 	startup_keys_held = keysHeld();
 	startup_quicklaunch_pending = 0;
+	Launcher_RevealSplash();
 	CheckLanguage();
 	CheckSwitch();
 	Launcher_InitThumbCache();
@@ -14632,7 +14843,7 @@ refind_file:
 							continue;
 						Launcher_StoreFileRecord(game_total_SD, fileinfo.fname, fileinfo.altname, fileinfo.fsize);
 						if(launcher_list_folders && (launcher_sd_launchable_file_count == 0) &&
-							Launcher_IsLaunchableFilename(fileinfo.fname))
+							Launcher_IsGameFilename(fileinfo.fname))
 							launcher_sd_launchable_file_count = 1;
 						game_total_SD++;
 					}
@@ -14729,6 +14940,7 @@ refind_file:
 		u16 old_boot_mode_pref = gl_boot_mode_pref;
 		gl_boot_mode_pref = Read_last_launch_mode() ? 0x2 : 0x1;
 		startup_quicklaunch_pending = 0;
+		Launcher_EndSplash();
 		UIAudio_StopForSharedBufferUse();
 		res = SD_list_MENU(show_offset, file_select, 0xBB);
 		gl_boot_mode_pref = old_boot_mode_pref;
@@ -14823,6 +15035,9 @@ refind_file:
 //NOR_list:
 //SD_list:
 re_showfile:
+    Launcher_EndLaunchIndicator();
+	/* Fade only after startup work and directory preparation are complete. */
+	Launcher_EndSplash();
 	launcher_active_page = page_num;
 	Launcher_UpdateEffectiveViewMode();
 	Launcher_ResetThumbCache();
@@ -14871,6 +15086,13 @@ re_showfile:
 	{
 		while(1)//2
 		{
+            if((page_num == SD_list || page_num == NOR_list) && Launcher_ApplyPendingAutoTheme())
+            {
+                launcher_force_full_redraw = 1;
+                launcher_system_name_dirty = 1;
+                gl_clock_dirty = 1;
+                goto re_showfile;
+            }
 			VBlankIntrWait();
 			VBlankIntrWait();
 			if(shift==0){
@@ -15086,7 +15308,12 @@ re_showfile:
 					Launcher_FlushInputForModal();
 					if(res == 0)
 					{
-						launcher_sd_restore_pending = 1;
+                        if(launcher_open_system_requested)
+                        {
+                            res = Launcher_OpenSystemFolder(&show_offset, &file_select, &folder_select);
+                            if(res != FR_OK) { Show_error_num(0); goto re_showfile; }
+                        }
+                        else launcher_sd_restore_pending = 1;
 						page_num = SD_list;
 						launcher_start_selected = 1;
 						launcher_force_full_redraw = 1;
@@ -15317,7 +15544,7 @@ re_showfile:
 					launcher_nav_repeat_delay = 0;
 				else if(launcher_nav_repeat_delay)
 				{
-					keysrepeat &= ~launcher_nav_repeat_mask;
+					keysrepeat &= ~(launcher_nav_repeat_mask & ~keysdown);
 					launcher_nav_repeat_delay--;
 				}
 			}
@@ -15338,6 +15565,14 @@ re_showfile:
 			 ((page_num == NOR_list) && (game_total_NOR == 0))))
 				audio_keysdown &= ~KEY_A;
 
+            /* Folders accept immediately. Files defer audio until their action
+               is resolved, so a launch does not also play the menu click. */
+            if(audio_keysdown & KEY_A)
+            {
+                u32 index = Launcher_ResolveListEntryIndex(show_offset + file_select);
+                if(page_num == NOR_list || (page_num == SD_list && index >= folder_total))
+                    audio_keysdown &= ~KEY_A;
+            }
 			if((page_num == SD_list) || (page_num == NOR_list))
 			{
 				if(launcher_effective_show_thumbnail)
@@ -15369,11 +15604,14 @@ re_showfile:
 					if((page_num == SD_list) && !recents_view_active && (selected_index >= folder_total) &&
 					Launcher_IsLaunchableFilename((TCHAR*)Launcher_FileIdentityName(&pFilename_buffer[selected_index - folder_total])))
 					{
-						UIAudio_PlaySfx(UI_SFX_MENU);
 						p_folder_select_show_offset[folder_select] = show_offset;
 						p_folder_select_file_select[folder_select] = file_select;
 						Launcher_SaveSDState();
-						Launcher_FavouritePrompt(show_offset, file_select);
+						if(Launcher_ToggleFavourite(show_offset, file_select))
+						{
+							launcher_force_full_redraw = 1;
+							UIAudio_PlaySfx(UI_SFX_MENU);
+						}
 						Launcher_WaitForMenuKeyRelease(KEY_SELECT);
 						select_tap_pending = 0;
 						select_tap_timer = 0;
@@ -15382,10 +15620,13 @@ re_showfile:
 						launcher_vertical_folder_label_dirty = 1;
 						goto refind_file;
 					}
-					else if((page_num == SD_list) && recents_view_active && recents_view_favourites && (selected_index < game_total_SD))
+					else if((page_num == SD_list) && recents_view_active && (selected_index < game_total_SD))
 					{
-						UIAudio_PlaySfx(UI_SFX_MENU);
-						Launcher_FavouritePromptFullPath(p_recently_play[selected_index]);
+						if(Launcher_ToggleFavouriteFullPath(p_recently_play[selected_index]))
+						{
+							launcher_force_full_redraw = 1;
+							UIAudio_PlaySfx(UI_SFX_MENU);
+						}
 						Launcher_WaitForMenuKeyRelease(KEY_SELECT);
 						select_tap_pending = 0;
 						select_tap_timer = 0;
@@ -15497,11 +15738,11 @@ re_showfile:
 
 					if(new_absolute_index != absolute_index)
 					{
+						UIAudio_PlaySfx(UI_SFX_MOVE);
 						show_offset = (new_absolute_index / 10) * 10;
 						file_select = new_absolute_index % 10;
 
 						Launcher_BuildThumbCache(show_offset + file_select);
-						UIAudio_PlaySfx(UI_SFX_MOVE);
 						launcher_nav_repeat_delay = Launcher_ThumbNavRepeatDelay();
 						updata = LAUNCHER_UPDATE_CAROUSEL_SELECTION;
 					}
@@ -15516,11 +15757,11 @@ re_showfile:
 
 					if(new_absolute_index != absolute_index)
 					{
+						UIAudio_PlaySfx(UI_SFX_MOVE);
 						show_offset = (new_absolute_index / 10) * 10;
 						file_select = new_absolute_index % 10;
 
 						Launcher_BuildThumbCache(show_offset + file_select);
-						UIAudio_PlaySfx(UI_SFX_MOVE);
 						launcher_nav_repeat_delay = Launcher_ThumbNavRepeatDelay();
 						updata = LAUNCHER_UPDATE_CAROUSEL_SELECTION;
 					}
@@ -15883,6 +16124,7 @@ re_showfile:
 					p_folder_select_show_offset[folder_select] = show_offset;
 					p_folder_select_file_select[folder_select] = file_select;
 					Launcher_SaveSDState();
+                    Launcher_CloseSystemBrowser();
 					launcher_start_selected = 3;
 					page_num = SET_win;
 					launcher_vertical_folder_label_dirty = 1;
@@ -15914,6 +16156,7 @@ re_showfile:
 					p_folder_select_show_offset[folder_select] = show_offset;
 					p_folder_select_file_select[folder_select] = file_select;
 					Launcher_SaveSDState();
+                    Launcher_CloseSystemBrowser();
 					launcher_start_selected = 2;
 					recents_view_active = 0;
 					page_num = NOR_list;
@@ -15933,6 +16176,11 @@ re_showfile:
 			}
 			else if(keysdown & KEY_B)//return
 			{
+                if(Launcher_SystemBrowserBack(&page_num))
+                {
+                    UIAudio_PlayBack();
+                    goto re_showfile;
+                }
 				if(page_num == NOR_list)
 				{
 					if(!launcher_start_screen_off)
@@ -16061,6 +16309,7 @@ re_showfile:
 						if(res){
 							launcher_force_full_redraw = 1;
 							if(res==2){
+                                Launcher_CloseSystemBrowser();
 								recents_view_active = 0;
 								page_num = NOR_list;
 							}
@@ -16150,8 +16399,33 @@ re_showfile:
 	}
 }
 //---------------------------------------------------------------
+#include "launch_indicator_anchor.h"
+static void Launcher_RestoreLaunchMenu(u32 show_offset, u32 file_select)
+{
+    if(launcher_active_page == START_win)
+        DrawPic((u16*)(pReadCache + 0x10000), 36, 25, 168, 110, 0, 0, 1);
+    else
+    {
+        Launcher_RestorePopupRegionForPage(launcher_active_page,
+            launcher_cache_prev.valid && launcher_cache_prev.has_thumbnail,
+            launcher_cache_prev.custom_thumbnail);
+        if(Launcher_IsListLikeMode()) Launcher_RestoreListPopupContent(show_offset, file_select);
+        else if(Launcher_ActiveViewMode() == 2) Draw_ModernLauncher_SD_Vertical_State(show_offset, file_select);
+        else Draw_ModernLauncher_SD(show_offset, file_select, 0);
+        launcher_popup_restore_redraw = 0;
+    }
+}
+
+static void Launcher_ConfirmLaunch(u32 pulse)
+{
+    UIAudio_PlaySfx(UI_SFX_LAUNCH);
+    if(pulse) Launcher_AnimateCarouselLaunch();
+}
+//---------------------------------------------------------------
 void Boot_NOR_game(u32 show_offset,	u32 file_select,u32 key_L)
 {
+	Launcher_RestoreLaunchMenu(show_offset, file_select);
+	Launcher_ConfirmLaunch(0);
 	UIAudio_StopForSharedBufferUse();
 	//TCHAR savfilename[100];
 	TCHAR *pfilename;
@@ -16160,7 +16434,7 @@ void Boot_NOR_game(u32 show_offset,	u32 file_select,u32 key_L)
 	BYTE error_num;
 	u32 res;
 
-	Clear(0, 0, 240, 160, gl_color_cheat_black, 1);
+	Launcher_BeginLaunchScreen();
 	//DrawHZText12(gl_Loading,0,(240-strlen(gl_Loading)*6)/2,74, gl_color_text,1);
 
 	init_FAT_table();
@@ -16206,6 +16480,7 @@ void Boot_NOR_game(u32 show_offset,	u32 file_select,u32 key_L)
 		reset_choice = !gl_toggle_reset;
 	else
 		reset_choice = gl_toggle_reset;
+	Launcher_FinishLaunch();
 	SetRompageWithHardReset(pNorFS[show_offset+file_select].rompage,reset_choice);
 	while(1);
 }
@@ -16221,6 +16496,7 @@ u8 FRAM_save_op(u8 OP)
 	BYTE SAVEMODE;
 	u32 name_len;
 
+	Launcher_DrawPopupPanel(36, 25);
 	res = f_mkdir(SAVER_FOLDER);//"/SAVER"
 	if((res != FR_OK) && (res != FR_EXIST)){
 		return 2;
@@ -16254,16 +16530,16 @@ u8 FRAM_save_op(u8 OP)
 			res = Loadsavefile(savfilename);
 			if(!res)
 				return 5;
-			DrawHZText12(gl_save_loaded,0,66,118-15,RGB(00,31,00),1);
+			DrawHZText12(gl_save_loaded,0,66,74,RGB(00,31,00),1);
 		}
 		else {
-			DrawHZText12(gl_file_noexist,0,66,118-15,RGB(31,00,00),1);
+			DrawHZText12(gl_file_noexist,0,66,74,RGB(31,00,00),1);
 		}
 	}
 	else if(OP ==2){ //bak fram save
 		if(res == FR_OK)//have a old save file
 		{
-			DrawHZText12(gl_file_exist,0,66,118-15,RGB(31,00,00),1);
+			DrawHZText12(gl_file_exist,0,66,74,RGB(31,00,00),1);
 			while(1){
 				VBlankIntrWait();
 				scanKeys();
@@ -16271,8 +16547,7 @@ u8 FRAM_save_op(u8 OP)
 				UIAudio_HandleKeys(keysdown, 0);
 				if (keysdown & KEY_A) {
 					UIAudio_PlayAccept();
-					DrawPic((u16*)gImage_MENU, 36, 25, 168, 110, 1, 0, 1);//show menu pic
-					Show_MENU_btn();
+					Launcher_DrawPopupPanel(36, 25);//show menu pic
 					break;
 				}
 				else if(keysdown & KEY_B){
@@ -16286,7 +16561,7 @@ u8 FRAM_save_op(u8 OP)
 		res = Save_savefile(savfilename,savefilesize);
 		if(!res)
 			return 5;
-		DrawHZText12(gl_save_saved,0,66,118-15,RGB(00,31,00),1);
+		DrawHZText12(gl_save_saved,0,66,74,RGB(00,31,00),1);
 	}
 	wait_btn();
 	return 0;
@@ -16394,8 +16669,8 @@ u8 NOR_list_MENU(u32 show_offset,	u32 file_select)
 		MENU_max = first_game ? 4 : 2;
 	else
 		MENU_max = first_game ? 3 : 1;
-	DrawPic((u16*)gImage_MENU, 36, 25, 168, 110, 1, 0, 1);//show menu pic
-	Show_MENU_btn();
+	Launcher_DrawPopupPanel(36, 25);//show menu pic
+
 	while(1)//3
 	{
 		if(re_menu)
@@ -16422,17 +16697,17 @@ u8 NOR_list_MENU(u32 show_offset,	u32 file_select)
 			/* NOR erase/format operations touch hardware/shared buffers while the menu
 			accept sound may still be playing.  Defer the accept sound for those
 			rows so we can play it cleanly and close FIFO DMA before the operation. */
-			if(((audio_action_line == 1) || (audio_action_line == 2)) && (keysdown & KEY_A))
+			if((audio_action_line <= 2) && (keysdown & KEY_A))
 				audio_keysdown &= (u16)~KEY_A;
 			UIAudio_HandleKeysEx(audio_keysdown, 0, 0, 0);
 		}
 		keys_released = keysUp();
 
 		if ((keysdown & KEY_DOWN) || ((keysrepeat & KEY_DOWN) && menu_scroll_delay == 0)) {
-			if (MENU_line < MENU_max) {
+			if (Launcher_MenuCanMove(MENU_line, MENU_max + 1, 1)) {
 				u32 first_press = (keysdown & KEY_DOWN) != 0;
 				u32 old_MENU_line = MENU_line;
-	MENU_line++;
+	MENU_line = Launcher_MenuMove(MENU_line, MENU_max + 1, 1);
 	        Show_MENU_Row(old_MENU_line, MENU_line, NOR_list, 0, 0, delete_allowed);
 	        Show_MENU_Row(MENU_line, MENU_line, NOR_list, 0, 0, delete_allowed);
         re_menu=0;
@@ -16442,10 +16717,10 @@ u8 NOR_list_MENU(u32 show_offset,	u32 file_select)
 		}
 		else if((keysdown & KEY_UP) || ((keysrepeat & KEY_UP) && menu_scroll_delay == 0))
 		{
-			if (MENU_line ) {
+			if (Launcher_MenuCanMove(MENU_line, MENU_max + 1, -1)) {
 				u32 first_press = (keysdown & KEY_UP) != 0;
 				u32 old_MENU_line = MENU_line;
-				MENU_line--;
+				MENU_line = Launcher_MenuMove(MENU_line, MENU_max + 1, -1);
 				Show_MENU_Row(old_MENU_line, MENU_line, NOR_list, 0, 0, delete_allowed);
 				Show_MENU_Row(MENU_line, MENU_line, NOR_list, 0, 0, delete_allowed);
 				re_menu=0;
@@ -16559,6 +16834,11 @@ u8 SD_list_MENU(u32 show_offset,	u32 file_select,u32 play_re )
 	u8 old_Save_num=0;
 	u32 havecht;
 	u32 MENU_line=0;
+	u32 launch_confirmed = 0;
+    u32 menu_visible = 0;
+    u32 silent_return = launcher_silent_menu_return;
+    launcher_silent_menu_return = 0;
+    Launcher_EndLaunchIndicator();
 	u32 re_menu=1;
 	u32 MENU_max;
 	u32 ignore_b_frames=0;
@@ -16607,15 +16887,15 @@ u8 SD_list_MENU(u32 show_offset,	u32 file_select,u32 play_re )
 	}
 
 is_EMU = Check_file_type(pfilename);
+if(!silent_return && (is_EMU == 0xff || (is_EMU == 0 && !gl_boot_mode_pref))) UIAudio_PlayAccept();
 
 if (is_EMU == 0xff)
 {
     if (Is_themes_folder(currentpath) && Is_bin_file(pfilename))
 	{
-		DrawPic((u16*)gImage_MENU, 36, 25, 168, 110, 1, 0, 1);
-		Show_MENU_btn();
-		DrawHZText12(DSTEXT_PREPARE_THEME_QUESTION, 0, 47, 45, gl_color_text, 1);
-		DrawHZText12(pfilename, 20, 47, 60, gl_color_text, 1);
+        char style_name[32];
+        Launcher_StyleDisplayName(pfilename, style_name, sizeof(style_name));
+        Launcher_ShowStyleMessage(DSTEXT_PREPARE_THEME_QUESTION, style_name, NULL);
 
 		while (1)
 		{
@@ -16627,19 +16907,13 @@ if (is_EMU == 0xff)
 			if (keysdown & KEY_A)
 			{
 				UIAudio_PlayAccept();
-				DrawPic((u16*)gImage_MENU, 36, 25, 168, 110, 1, 0, 1);
-				DrawHZText12(DSTEXT_PREPARING_THEME, 0, 47, 50, gl_color_text, 1);
-				DrawHZText12(DSTEXT_PLEASE_WAIT, 0, 47, 65, gl_color_text, 1);
+                Launcher_ShowStyleMessage(DSTEXT_PREPARING_THEME, DSTEXT_PLEASE_WAIT, NULL);
 
 				VBlankIntrWait();
 
 				if (Stage_kernel_update(pfilename))
 				{
-					DrawPic((u16*)gImage_MENU, 36, 25, 168, 110, 1, 0, 1);
-
-					DrawHZText12(DSTEXT_THEME_READY, 0, 47, 45, gl_color_text, 1);
-					DrawHZText12(DSTEXT_REBOOT_HOLD_R, 0, 47, 60, gl_color_text, 1);
-					DrawHZText12(DSTEXT_TO_INSTALL_IT, 0, 47, 75, gl_color_text, 1);
+                    Launcher_ShowStyleMessage(DSTEXT_THEME_READY, DSTEXT_REBOOT_HOLD_R, DSTEXT_TO_INSTALL_IT);
 
 					while (keysHeld() != 0)
 					{
@@ -16661,9 +16935,9 @@ if (is_EMU == 0xff)
 				}
 				else
 				{
-					DrawPic((u16*)gImage_MENU, 36, 25, 168, 110, 1, 0, 1);
+					Launcher_DrawPopupPanel(36, 25);
 
-					DrawHZText12(DSTEXT_PREPARATION_FAILED, 0, 47, 55, RGB(31,0,0), 1);
+					DrawHZText12(DSTEXT_PREPARATION_FAILED, 0, 47, 74, RGB(31,0,0), 1);
 
 					while (keysHeld() != 0)
 					{
@@ -16706,7 +16980,7 @@ if (is_EMU == 0xff)
 		havecht = 0;
 		Save_num = 0xF;
 		MENU_max = 0;
-		if(gl_boot_mode_pref) Launcher_AnimateCarouselLaunch();
+		if(gl_boot_mode_pref) { Launcher_ConfirmLaunch(1); launch_confirmed = 1; }
 		goto load_file;
 	}
 	else{ //gba file
@@ -16725,19 +16999,27 @@ if (is_EMU == 0xff)
 		if(gl_boot_mode_pref == 0x1)
 		{
 			MENU_line = 0;
-			Launcher_AnimateCarouselLaunch();
+			Launcher_ConfirmLaunch(1); launch_confirmed = 1;
 			goto load_file;
 		}
 		else if(gl_boot_mode_pref == 0x2)
 		{
 			MENU_line = 1;
-			Launcher_AnimateCarouselLaunch();
+			Launcher_ConfirmLaunch(1); launch_confirmed = 1;
 			goto load_file;
 		}
 	}
 
-	DrawPic((u16*)gImage_MENU, 36, 25, 168, 110, 1, 0, 1);//show menu pic
-	Show_MENU_btn();
+    menu_visible = 1;
+    /* The upper scratch bank is idle throughout this modal menu. Restore
+       its exact underlay on B, without touching Start's selection markers. */
+    if(launcher_active_page == START_win)
+    {
+        for(u32 row = 0; row < 110; row++)
+            dmaCopy(VideoBuffer + (25 + row) * 240 + 36,
+                pReadCache + 0x10000 + row * 168 * 2, 168 * 2);
+    }
+    Launcher_DrawPopupPanel(36, 25);//show menu pic
 	/* Ignore a few initial B-release frames so opening this menu from the
 	start screen cannot be cancelled by stale input from the previous
 	screen. */
@@ -16758,16 +17040,16 @@ if (is_EMU == 0xff)
 		keysdown  = keysDown();
 		keysup  = keysUp();
 		keysrepeat = keysDownRepeat();
-		UIAudio_HandleKeysEx(keysdown, 0, 0, 0);
+		UIAudio_HandleKeysEx(MENU_line < 2 ? (keysdown & ~KEY_A) : keysdown, 0, 0, 0);
 		keys_released = keysUp();
 		if(ignore_b_frames)
 			ignore_b_frames--;
 
 		if ((keysdown & KEY_DOWN) || ((keysrepeat & KEY_DOWN) && menu_scroll_delay == 0)) {
-			if (MENU_line < MENU_max) {
+			if (Launcher_MenuCanMove(MENU_line, MENU_max + 1, 1)) {
         u32 first_press = (keysdown & KEY_DOWN) != 0;
         u32 old_MENU_line = MENU_line;
-	MENU_line++;
+	MENU_line = Launcher_MenuMove(MENU_line, MENU_max + 1, 1);
         Show_MENU_Row(old_MENU_line, MENU_line, SD_list, ((havecht>0)?1:0), Save_num, 1);
         Show_MENU_Row(MENU_line, MENU_line, SD_list, ((havecht>0)?1:0), Save_num, 1);
         re_menu=0;
@@ -16777,10 +17059,10 @@ if (is_EMU == 0xff)
 		}
 		else if((keysdown & KEY_UP) || ((keysrepeat & KEY_UP) && menu_scroll_delay == 0))
 		{
-			if (MENU_line ) {
+			if (Launcher_MenuCanMove(MENU_line, MENU_max + 1, -1)) {
 				u32 first_press = (keysdown & KEY_UP) != 0;
 				u32 old_MENU_line = MENU_line;
-				MENU_line--;
+				MENU_line = Launcher_MenuMove(MENU_line, MENU_max + 1, -1);
 				Show_MENU_Row(old_MENU_line, MENU_line, SD_list, ((havecht>0)?1:0), Save_num, 1);
 				Show_MENU_Row(MENU_line, MENU_line, SD_list, ((havecht>0)?1:0), Save_num, 1);
 				re_menu=0;
@@ -16797,6 +17079,8 @@ if (is_EMU == 0xff)
 				strncpy(currentpath, currentpath_temp, 256);//
 			}
 			f_chdir(currentpath);//return to old folder
+            if(launcher_active_page == START_win)
+                DrawPic((u16*)(pReadCache + 0x10000), 36, 25, 168, 110, 0, 0, 1);
 			launcher_restore_popup_region = 1;
 			launcher_force_full_redraw = 0;
 			return 0;
@@ -16848,6 +17132,7 @@ if (is_EMU == 0xff)
 				f_chdir(currentpath);
 				launcher_reopen_sd_menu_after_redraw = 1;
 				launcher_reopen_from_cheat_screen = 1;
+                launcher_silent_menu_return = 1;
 				launcher_force_full_redraw = 1;
 				return 0;
 			}
@@ -16862,6 +17147,9 @@ if (is_EMU == 0xff)
 		ShowTime(SD_list,0);
 	}	//3
 load_file:
+    if(MENU_line < 2 && menu_visible) Launcher_RestoreLaunchMenu(show_offset, file_select);
+    if(MENU_line < 2 && !launch_confirmed) Launcher_ConfirmLaunch(0);
+    if(MENU_line < 2) Launcher_BeginLaunchScreen();
 	/* The shared PSRAM read area is about to be reused for the ROM load.
 	   Invalidate thumbnail/list-art entries before launching so no cached
 	   artwork can survive into a subsequent folder redraw. */
@@ -16876,7 +17164,7 @@ load_file:
 		CheatStateLoadHeadless(pfilename, havecht);
 		f_chdir(currentpath);
 	}
-	Clear(0, 0, 240, 160, gl_color_cheat_black, 1);
+	if(MENU_line >= 2) { Launcher_EndLaunchIndicator(); Clear(0, 0, 240, 160, gl_color_cheat_black, 1); }
 	//DrawHZText12(gl_Loading,0,(240-strlen(gl_Loading)*6)/2,74, gl_color_text,1);
 
 	u32 gamefilesize=0;
@@ -16905,7 +17193,7 @@ load_file:
 	SAVEMODE = Get_saveMODE(Save_num,gamefilesize);
 	if(MENU_line<2){//work for psram
 		if(gamefilesize > 0x2000000){
-			ShowbootProgress(gl_file_overflow);
+			Launcher_ShowLaunchError(gl_file_overflow);
 			wait_btn();
 			return 0;
 		}
@@ -16941,6 +17229,7 @@ load_file:
 				((is_EMU == 6) ? 2
 					: (is_EMU == 7) ? 4
 					: ((is_EMU == 8) ? 5 : 3)) : gl_toggle_reset;
+			Launcher_FinishLaunch();
 			SetRompageWithHardReset(0x200,bootmode);
 		while(1);
 	}
@@ -16975,6 +17264,7 @@ load_file:
 				reset_choice = !gl_toggle_reset;
 			else
 				reset_choice = gl_toggle_reset;
+					Launcher_FinishLaunch();
 					SetRompageWithHardReset(0x200,reset_choice);
 			break;
 	case 1://PSRAM BOOT WITH ADDON
@@ -17045,6 +17335,7 @@ load_file:
 				reset_choice = !gl_toggle_reset;
 			else
 				reset_choice = gl_toggle_reset;
+			Launcher_FinishLaunch();
 			SetRompageWithHardReset(0x200,reset_choice);
 		break;
 	case 2://WRITE TO NOR CLEAN

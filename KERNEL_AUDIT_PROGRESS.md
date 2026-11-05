@@ -1,5 +1,85 @@
 # DS Style Kernel Audit Progress
 
+## 2026-11-05 — UI integration complete, exploratory candidate validated
+
+- Finished the selective FrankieT19 v8 UI integration already checkpointed on `exploratory`. Preserved the optional Clean list and Remember cheats settings, the existing Start-screen option, and other local protections.
+- Fixed the remaining Select double-tap gap: games in the SD list, Recents, or Favourites now toggle favourite state immediately without the old confirmation modal. Added focused host coverage for add/remove, capacity and blocked-cache behavior. Added Auto-theme boundary coverage for 07:00, 08:00, 19:00 and 20:00.
+- Forced devkitARM 16.1.0 production build PASS at 2,009,752 bytes, 87,400 below 2 MiB. All 21 host scripts PASS. `scripts/rebuild-and-verify-audit.sh` PASS, including Cppcheck, browser, artwork, carousel and cheat checks. Durable outputs: `files/upstream-ui/final-build.log`, `all-host-suites.log`, `final-audit.log`.
+- Candidate `files/candidate/8.3.0-rc1/ezkernelnew.bin`: 2,009,752 bytes, SHA-256 `4dfe5f0c1bfc4bda1b58f71c6b03fab0438e612a31725f9c3b516afb2033476f`, About `DS Style Merkin Mix 8.3.0-rc1`. Link map: `pReadCache` at `0x02013ed0` (`0x20000` bytes), EWRAM `__end__=0x0203a140`, configured heap end `0x0203c000`; motion, SYSTEM-browser and launch-indicator state are dedicated EWRAM objects. Candidate behavior and limitations are recorded in `files/UPSTREAM_UI_CANDIDATE.md`.
+- No emulator or physical-hardware validation was available; the candidate is not a stable release and no tag/GitHub release was created. Stable v8.2.0 remains unchanged. Existing F-011/F-022/F-032/F-036 audit risks remain open.
+
+## 2026-11-05 — Integration resumed, buildable source checkpoint
+
+- Removed duplicate nonzero wrap declaration; retained EWRAM BSS and runtime missing-key default On. Explicit Off, canonical/legacy key precedence and present-invalid fallback Off remain preserved.
+- Initial resumed build PASS: 2,009,896 bytes (87,256 below 2 MiB), log `files/upstream-ui/resume-build.log`. Prior Auto root/Start repaint review fixes are present. Added missing SYSTEM close on SD-menu return to NOR; validation follows.
+- Checkpoint includes inherited production transplant, assets, review reports and selected patch/reject evidence. Integration is NOT yet validated: focused lifecycle/settings tests, all host suites, full audit, memory/shared-buffer review, candidate staging and public notes remain pending. Stable 8.2.0 unchanged. Next complete those gates and push final evidence on exploratory.
+
+
+## 2026-11-05 — Recovery checkpoint: upstream integration incomplete
+
+- Usage interruption left selected upstream UI source/assets uncommitted on exploratory at `33f9625`. Prior carousel validation is already checkpointed. Do not restart or overwrite the pending integration; inspect the diff and both UPSTREAM review documents.
+- Last build failure: duplicate `launcher_wrap_around` declaration with nonzero initializer in EWRAM `.sbss`. Retain a zero-initialized storage declaration and establish default On through the settings reader; preserve explicitly saved Off. More integration/build checks remain; this is not a validated candidate.
+- Pending files include launch indicator/fade, popup/save artwork, Auto theme/navigation/SYSTEM helpers, easing Start markers and local splash packer. `source/ezkernelnew.c.rej` records patch conflicts; resolve individually, preserve fork protections and both retained settings, then remove the reject after verifying each hunk. Do not treat an applied patch as a completed integration.
+- Current work resumes toward a separately staged 8.3.0-rc1 test candidate. Validate builds, settings defaults and persistence, shared audio/artwork ownership, UI navigation, current Last played behavior and memory/size bounds. Commit/push a buildable checkpoint before lengthy final validation, then persist final test/artifact identity. No stable release publication requested.
+
+## 2026-11-05 — Completed exploratory validation checkpoint; UI integration next
+
+- Reconciled the previously uncommitted evidence: all 19 host suites passed and `files/carousel-performance/full-audit.log` ends with successful audit completion (build, browser, JavaScript, whitespace and Cppcheck). The prior pending-validation statement is superseded. Candidate identity, linked RAM and disassembly are preserved in `files/CAROUSEL_EXPLORATORY_CANDIDATE.md` and its durable logs. No fresh hardware result or overall scrolling speedup is claimed.
+- Next priority is selective upstream UI integration from FrankieT19 `67a5f7b` (v8.0 source `6d6084e`), relative to previously integrated `df346b5`. Preserve all fork safeguards, optional Remember cheats/CHS2, optional Clean list names, CUSTOM Only, exact transparency sentinel, contour rollback, cache alignment/relocation guard, save/NOR protections and manifest optimization. Avoid wholesale merge and unrelated deployment assets.
+- Owner correction: Last played truncation was observed in another/downstream build, NOT current Merkin Mix. Preserve current filename behavior and prevent importing that regression; do not claim a local fix.
+- Requested UI: default-On wrap; grouped View options; clock Auto theme dark 20:00–08:00; Open SYSTEM; refined sounds/popups/launch ring and theme fade; eased Start corner markers; no artificial splash hold; startup sound finishes opening menu; title artwork in Saving Game Data overlay. Review reports will be `files/UPSTREAM_SETTINGS_REVIEW.md` and `files/UPSTREAM_PRESENTATION_REVIEW.md`; reviewers edit reports only.
+- Commit this completed validation checkpoint first, then integrate and validate milestones on exploratory. Prepare separate prerelease-test-only 8.3.0-rc1 candidate <=2 MiB, record hash/size/About/linker RAM, relevant tests and full audit. Commit/push final clean branch. Stable v8.2.0 is untouched; no release/PR publication requested. Existing F-011/F-022/F-032/F-036 remain open.
+
+
+## 2026-11-04 — Carousel manifest implementation and focused evidence
+
+- Owner clarified the symptom: **gradual slowdown as folder size grows**, becoming noticeable around 60 titles; this is not a hard threshold or threshold-bug claim. This clarification supersedes older shorthand about >60.
+- Both review reports are complete. Chosen narrow change sorts the existing per-style CUSTOM hash manifest in place after collection and binary-searches it. No allocation, recursion, persistent RAM growth, identity resolver, file-open order, cache layout, rendering, DMA or IRQ changes. The same first 256 entries and duplicate/collision membership remain; partial/error collection semantics are preserved. About identifies the exploratory build as `8.2.0-exp1`.
+- Focused `test-custom-manifest-host.sh` PASS: 169,620 differential membership queries, counts 0..256, full-width/duplicate hashes and guard canaries; extracted production collector tests cap, style isolation, warm reuse, missing directory, empty directory and partial read. For 120 misses at M=256, linear probes 30,720 -> binary probes 960; reverse-order cold sorting adds 2,562 comparisons. This is CPU operation evidence, not hardware timing or a cure for directory scaling.
+- `test-carousel-lookup-scaling-host.sh` PASS with real temporary instrumented FatFs: N=30/60/90/120/240 late ordinary LFN opens require 121/242/363/484/965 dir_next calls; missing opens 132/253/374/495/976. Fixture also has one clipped LFN. Parent slots are included; these are not disk reads. Complete indexed names still skip explicit resolution; clipped fallback enumerates N+1 returned entries. Its resolver callback remains the existing host model, not extracted firmware.
+- Checkpointing source/tests/reports now with **full validation pending**. Forced `make -B` has passed at 2,064,384 bytes; next inspect ARM linked footprint/disassembly, then run all 19 host suites and full audit once final. Persist output and candidate identity separately from stable v8.2.0. No measured hardware speedup claimed.
+
+## 2026-11-04 — Carousel integration investigation checkpoint
+
+- Integration starts from `7cd9200` on exploratory, preserving owner README commits. Reviews are active in `files/CAROUSEL_PERFORMANCE_REVIEW.md` and `files/CAROUSEL_RENDER_REVIEW.md`; implementation selection waits for their completed findings.
+- Confirmed baseline already bypasses indexed-name resolution for complete names. Clipped identities still require ambiguity-checked full enumeration; FatFs file opens also search directories. Rendering uses a fixed number of images, with no demonstrated 60-entry threshold.
+- Evaluating bounded CUSTOM manifest membership lookup as a narrow improvement; any claim must distinguish that CPU work from remaining file-open costs. The chosen scope excludes new negative caches, early-exit identity resolution, shared scratch expansion, and timer/IRQ changes. Next: finish reviews, add operation-count/differential evidence, build separately from v8.2.0, run all suites and full audit, record candidate and push.
+
+## 2026-11-04 — Carousel investigation resumed after usage pause
+
+- Reconciled clean local exploratory with remote and fast-forwarded two owner README edits (`fb26fb0`, `7f1a04d`); preserve these edits. Release v8.2.0 and merged PR #1 are complete. The border rollback is owner-confirmed successful.
+- Active task: investigate folder-size-dependent carousel browsing slowdown above roughly 60 entries. Parallel read-only reviews cover indexed-name/artwork I/O and rendering/cache/input work. Findings are being stored in `files/CAROUSEL_PERFORMANCE_REVIEW.md` and `files/CAROUSEL_RENDER_REVIEW.md`; absent files mean that review has not completed, not that no issue exists.
+- Recovery: inspect current Git status and these review files, reconcile partial changes before rerunning checks, and continue the exact investigation steps below. Record each verified finding and validation result before changing subsystems. Keep reproducible scripts/results and candidate identity in the repository; temporary logs alone are not a checkpoint. Commit and push meaningful validated milestones to exploratory; do not publish a new stable release for this investigation.
+- No performance cause or speedup has been established yet. Existing hardware and memory constraints remain in force. This checkpoint introduces no firmware change.
+
+## 2026-11-04 — Release branch merged and removed
+
+- At the owner's request, PR #1 (`release/8.2.0` → `main`) was merged with merge commit `a34aea5`. Local `main` now tracks the updated `origin/main`.
+- Deleted the remote and local `release/8.2.0` branch after the merge. The v8.2.0 release/tag remains intact.
+- Active development remains on `exploratory`. Its carousel-performance checkpoint is preserved; the next investigation and successful border-rollback hardware feedback below still apply. Earlier entries describing PR #1 as open are historical.
+
+## 2026-11-04 — Current handoff: exploratory carousel-performance investigation
+
+This is the current continuation priority and supersedes older branch, hardware-pending and next-task statements below.
+
+- **Owner hardware feedback:** the artwork-border rollback was successful. The extra silhouette scan remains removed; preserve the established rectangular/rounded borders and transparent artwork support. This is owner-reported hardware evidence for the rollback, not a measured frame-time benchmark or confirmation of every other feature.
+- **New symptom:** carousel browsing slows noticeably in folders containing more than roughly 60 titles. Treat that number as an observed threshold, not a proven internal boundary. The affected exact view/orientation, artwork mix, filename lengths, SD layout and animation settings have not been isolated. The cause is unconfirmed; directory lookup, thumbnail I/O/cache churn, rendering and input scheduling are investigation candidates.
+- **Branch/state:** work continues on `exploratory`, tracking `origin/exploratory`, created from `84d3c9c` (release-note correction). Working tree was clean before this documentation checkpoint. Commit and push this checkpoint on exploratory. Release branch and published tag remain separate; do not merge exploratory work into a release automatically.
+- **Release baseline:** stable v8.2.0 is tagged at `9211e71bd435a14bdfac1ee5af57be4675d8a719`. Candidate `files/candidate/8.2.0/ezkernelnew.bin`: 2,064,280 bytes, SHA-256 `72201320f0e8fc7c332a715704fc11a8c1ad33e8400661d09bb45c411ac3d8fa`. PR #1 (`release/8.2.0` to `main`) remains OPEN as checked this turn. Publication and notes edits are complete; no republish is needed.
+
+### Exact next investigation
+
+1. Read this checkpoint, the recent ledger entries and `files/agent_prompt.txt`; inspect Git state and work on `exploratory`. Preserve prior audit fixes and the confirmed border rollback. Full Skiller engine integration remains deferred; see `files/SKILLER_CHEAT_ENGINE_REVIEW.md`.
+2. Trace one adjacent carousel move through input handling, `Launcher_ShiftThumbCache`, `Launcher_LoadThumbDataForIndex`, indexed-name/path resolution, custom/mirrored/game-code artwork lookup and `Launcher_AnimateCarouselMove`. Relevant files: `source/ezkernelnew.c`, `source/launcher_indexed_name.h`, `source/carousel_motion.h`. Check directory enumeration around `Launcher_ResolveIndexedName` and path-resolver `f_readdir`, full-cache rebuild fallback conditions, incoming-cache reuse and invalidation. Determine which work grows with folder size; do not assume the rasterizer is responsible.
+3. Compare folders around 30/60/90/120+ entries, holding image dimensions/content and settings constant. Separate cold entry, first movement, repeated adjacent steps, held-key scrolling and wrap boundaries. Compare animations on/off, horizontal/vertical views, title/box art, opaque/transparent/missing artwork and short/long filenames. Count directory traversals, file opens/reads, cache misses/rebuilds and repeated name resolution per move. Host instrumentation can establish algorithmic scaling, not SD latency or GBA frame time.
+4. Review rendering work in `Launcher_MotionImage`, `Launcher_DrawMotionRest`, the background compositor, scaling, transparency scans and presentation/VBlank waits. Separate thumbnail-load stalls from per-frame draw cost. Respect ARM7TDMI alignment, ROM/EWRAM/VRAM access costs, shared audio/artwork buffers, DMA ownership and bounded IWRAM/EWRAM/stack space. Do not introduce a per-image full-frame pass or an unbounded cache. Reuse existing prepared images where possible and check whether repeated lookup/render preparation is avoidable before considering architectural changes.
+5. Reproduce any confirmed defect with a focused test. For a performance change, record operation counts and target disassembly/linked-size evidence; use nonintrusive hardware timing only with explicit timer/IRQ ownership analysis. Do not infer hardware speedups from desktop elapsed time. Preserve long-name identity, sorting, artwork precedence, CUSTOM Only origin tracking and cache invalidation across folder/style/view changes.
+6. Build a separately named exploratory candidate, preserve the published v8.2.0 baseline, and record size/hash/About text and the exact changed behavior. Run relevant host regressions and `bash scripts/rebuild-and-verify-audit.sh`; retain the 2 MiB limit. Seek owner comparison on the same slow folder after a justified change. Update these ledgers at each milestone.
+
+- **Environment:** devkitARM 16.1.0, Make/GBA rules, host GCC, Python, Node and Cppcheck are used by existing checks. `.devcontainer` provisions the GBA toolchain; verify dependencies on a new Codespace. `make` builds the directory-named `.gba`; copy only a successful build to a candidate `.bin`. The prior forced build, all 17 host suites and full audit passed for v8.2.0. Temporary `/tmp` logs may disappear; do not depend on them for handoff. No firmware edits/build/tests were needed for this documentation-only checkpoint; whitespace checked.
+- **Remaining audit risks:** F-011 settings write/close handling, F-022 NOR timing/device evidence, F-032 single-catalog recovery and F-036 failed existing-save overwrite remain open. No speculative journals, board-specific workarounds or arbitrary flash timeouts. Keep comments short and consistent with surrounding code.
+- **Public notes policy:** only user-facing new features/fixes relative to the previous Merkin Mix release; retain inline contributor credits and cumulative historical sections. Do not label old fork fixes reintegrated from upstream as new, or describe added-then-reverted experiments as release features.
+
 ## 2026-11-04 — Release-note scope and attribution correction
 
 - Owner edited the live v8.2.0 notes and requested user-facing changes only, no added-then-removed experiments, and no earlier Merkin Mix fixes relabeled as new after upstream reintegration. Start future edits from the live release body, preserving owner changes.

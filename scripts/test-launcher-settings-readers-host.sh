@@ -30,10 +30,10 @@ for v in ref new; do
 	"$tmp/$v" > "$tmp/$v.out"
 done
 
-# WrapAround intentionally defaults On when absent; compare its explicit values
-# with the reference and assert the new absent-key default separately.
-awk -F'|' '$1 != "WrapAround" || $3 != "absent"' "$tmp/ref.out" > "$tmp/ref.comparable"
-awk -F'|' '$1 != "WrapAround" || $3 != "absent"' "$tmp/new.out" > "$tmp/new.comparable"
+# WrapAround intentionally defaults On when absent. Its third value is new, so
+# compare legacy inputs with the reference and assert both new cases separately.
+awk -F'|' '$1 != "WrapAround" || ($3 != "absent" && $3 != "On, Not SYSTEM")' "$tmp/ref.out" > "$tmp/ref.comparable"
+awk -F'|' '$1 != "WrapAround" || ($3 != "absent" && $3 != "On, Not SYSTEM")' "$tmp/new.out" > "$tmp/new.comparable"
 lines=$(wc -l < "$tmp/new.comparable")
 if cmp -s "$tmp/ref.comparable" "$tmp/new.comparable"; then
 	echo "Settings readers match $ref over $lines comparable cases."
@@ -45,4 +45,7 @@ fi
 awk -F'|' '$1 == "WrapAround" && $3 == "absent" { if($4 != 1 || $5 != 0) exit 1; count++ }
 	END { if(count != 10) exit 1 }' "$tmp/new.out" ||
 	{ echo "FAIL: WrapAround must default On for every locale and initial value" >&2; exit 1; }
-echo "WrapAround absent-key default is On; explicit saved values match $ref."
+awk -F'|' '$1 == "WrapAround" && $3 == "On, Not SYSTEM" { if($4 != 2 || $5 != 0) exit 1; count++ }
+	END { if(count != 5) exit 1 }' "$tmp/new.out" ||
+	{ echo "FAIL: WrapAround must read On, Not SYSTEM for every locale and initial value" >&2; exit 1; }
+echo "WrapAround defaults On; legacy values match $ref and On, Not SYSTEM is preserved."

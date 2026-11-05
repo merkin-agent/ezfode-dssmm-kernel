@@ -1,5 +1,15 @@
 # Changelog
 
+## DS Style Merkin Mix 8.3.0-rc2 — exploratory test candidate
+
+This is an exploratory test build, not a stable release.
+
+### Changes since 8.3.0-rc1
+
+- Changed the startup Saving Game Data popup to show matching square box artwork instead of title artwork.
+- Added **On, Not SYSTEM** to Wrap around, disabling wrap-around while browsing `/SYSTEM` and its subdirectories.
+- Fixed Clean list Off not taking effect immediately when list rows were cached.
+
 ## DS Style Merkin Mix 8.3.0-rc1 — exploratory test candidate
 
 This is an exploratory test build, not a stable release.

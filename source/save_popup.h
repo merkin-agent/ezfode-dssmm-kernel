@@ -3,7 +3,24 @@
 
 #include "save_popup_text.h"
 
-/* Title art is staged before save I/O, then painted once into VRAM. */
+static u32 Launcher_SaveArtworkFormatValid(const u8 *raw, u32 width, u32 height)
+{
+    u32 offset, dib, file_width, file_height, compression;
+
+    if(!raw)
+        return 0;
+    memcpy(&offset, raw + 10, 4);
+    memcpy(&dib, raw + 14, 4);
+    memcpy(&file_width, raw + 18, 4);
+    memcpy(&file_height, raw + 22, 4);
+    memcpy(&compression, raw + 30, 4);
+    return raw[0] == 'B' && raw[1] == 'M' && offset == 54 && dib == 40 &&
+        file_width == width &&
+        (file_height == height || file_height == (0u - height)) &&
+        raw[26] == 1 && !raw[27] && raw[28] == 16 && !raw[29] && !compression;
+}
+
+/* Box art is staged before save I/O, then painted once into VRAM. */
 static u32 launcher_save_art_custom;
 static u32 Launcher_LoadSaveArtwork(const char *save_name)
 {
@@ -11,9 +28,11 @@ static u32 Launcher_LoadSaveArtwork(const char *save_name)
     char path[MAX_path_len], name[MAX_path_len];
     u8 *raw = pReadCache + 0x10002;
     u8 code[4];
-    u32 found, width, height, offset, compression, dib;
+    u32 found, width, height;
     u16 old_style = launcher_thumbnail_style;
-    launcher_thumbnail_style = LAUNCHER_THUMB_STYLE_TITLE;
+    launcher_thumbnail_style = LAUNCHER_THUMB_STYLE_BOX;
+    width = Launcher_ThumbnailSourceWidth();
+    height = Launcher_ThumbnailSourceHeight();
     launcher_save_art_custom = 0;
     Launcher_CustomThumbFileName(save_name, stem, sizeof(stem));
     found = stem[0] && Launcher_LoadCustomThumbnailByName(stem, raw);
@@ -32,16 +51,9 @@ static u32 Launcher_LoadSaveArtwork(const char *save_name)
     }
     if(found)
     {
-        memcpy(&offset, raw + 10, 4);
-        memcpy(&dib, raw + 14, 4);
-        memcpy(&width, raw + 18, 4);
-        memcpy(&height, raw + 22, 4);
-        memcpy(&compression, raw + 30, 4);
-        found = raw[0] == 'B' && raw[1] == 'M' && offset == 54 && dib == 40 &&
-            width == 120 && (height == 80 || height == (u32)-80) &&
-            raw[26] == 1 && !raw[27] && raw[28] == 16 && !raw[29] && !compression;
+        found = Launcher_SaveArtworkFormatValid(raw, width, height);
         if(found)
-            Launcher_ScaleThumbToBox((const u16*)(raw + 54), 120, 80,
+            Launcher_ScaleThumbToBox((const u16*)(raw + 54), width, height,
                 (u16*)(pReadCache + 0x18000), 48, 32);
     }
     launcher_thumbnail_style = old_style;
@@ -134,7 +146,7 @@ static void Launcher_DrawSavePopup(const char *name, u32 artwork, u32 writing)
     Clear(44, 56, 152, 1, edge, 1);
     if(artwork)
     {
-        Launcher_DrawSaveArtwork((const u16*)(pReadCache + 0x18000), 45, 62, 48);
+        Launcher_DrawSaveArtwork((const u16*)(pReadCache + 0x18008), 53, 62, 32);
     }
     Launcher_SavePopupName(name, artwork);
     Launcher_SavePopupLine(Launcher_SavePopupText(2), 44, 97, 152, 1);

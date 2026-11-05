@@ -72,6 +72,18 @@ scripts/test-launcher-artwork-draw-host.sh
 printf '\nRunning CUSTOM Only artwork style policy regression test...\n'
 scripts/test-launcher-art-style-policy-host.sh
 
+printf '\nRunning Clean list cache regression test...\n'
+scripts/test-launcher-clean-list-cache-host.sh
+
+printf '\nRunning save-popup artwork regression test...\n'
+scripts/test-save-popup-artwork-host.sh
+
+printf '\nRunning Wrap around SYSTEM-scope regression test...\n'
+scripts/test-launcher-wrap-system-host.sh
+
+printf '\nRunning settings readers regression test...\n'
+scripts/test-launcher-settings-readers-host.sh
+
 printf '\nRunning carousel memory and redraw regression test...\n'
 bash scripts/test-carousel-motion-host.sh
 

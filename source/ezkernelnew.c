@@ -4195,6 +4195,38 @@ static s32 Launcher_FindFavouriteFullPath(const char *fullpath)
 	return -1;
 }
 
+static u32 Launcher_ToggleFavouriteFullPath(const char *fullpath)
+{
+	s32 fav_index;
+
+	if(!fullpath || !fullpath[0])
+		return 0;
+	Launcher_LoadFavourites();
+	if(launcher_favourites_cache_blocked)
+		return 0;
+
+	fav_index = Launcher_FindFavouriteFullPath(fullpath);
+	if(fav_index >= 0)
+	{
+		u32 i;
+		for(i = (u32)fav_index; i + 1 < launcher_favourite_count; i++)
+		{
+			memset(Launcher_FavouritesBuffer()[i], 0x00, LAUNCHER_FAVOURITE_PATH_LEN);
+			dmaCopy(Launcher_FavouritesBuffer()[i + 1], Launcher_FavouritesBuffer()[i], LAUNCHER_FAVOURITE_PATH_LEN);
+		}
+		if(launcher_favourite_count)
+			launcher_favourite_count--;
+		memset(Launcher_FavouritesBuffer()[launcher_favourite_count], 0x00, LAUNCHER_FAVOURITE_PATH_LEN);
+		if(launcher_favourite_index >= launcher_favourite_count)
+			launcher_favourite_index = 0;
+		Launcher_SaveFavourites();
+	}
+	else if(!Launcher_AppendFavouriteFullPath(fullpath))
+		return 0;
+
+	return 1;
+}
+
 static u32 Launcher_IsLaunchableFilename(const TCHAR *name)
 {
 	TCHAR temp[256];
@@ -9356,88 +9388,14 @@ static void Launcher_CycleViewModeAndRedraw(u32 page_num, u32 *show_offset_ptr, 
 		*updata = 1;
 }
 
-static void Launcher_FavouritePromptFullPath(const char *full)
-{
-	char msg2[80];
-	s32 fav_index;
-
-	if(!full || !full[0])
-		return;
-
-	Launcher_LoadFavourites();
-	if(launcher_favourites_cache_blocked)
-		return;
-	fav_index = Launcher_FindFavouriteFullPath(full);
-	Launcher_DrawPopupPanel(36, 25);
-
-	if(fav_index >= 0)
-	{
-		char *msg1 = "Remove favourite?";
-		int x1 = (240 - strlen(msg1) * 6) / 2;
-		DrawHZText12(msg1, 0, x1, 45, gl_color_text, 1);
-	}
-	else
-	{
-		char *msg1 = "Set game as favourite?";
-		int x1 = (240 - strlen(msg1) * 6) / 2;
-		DrawHZText12(msg1, 0, x1, 45, gl_color_text, 1);
-	}
-	(void)msg2;
-
-	while(1)
-	{
-		VBlankIntrWait();
-		VBlankIntrWait();
-		scanKeys();
-		{
-			u16 keysdown = keysDown();
-			UIAudio_HandleKeysEx(keysdown, 0, 0, 0);
-			if(keysdown & KEY_A)
-			{
-				UIAudio_PlayAccept();
-				if(fav_index >= 0)
-				{
-					u32 i;
-					for(i = (u32)fav_index; i + 1 < launcher_favourite_count; i++)
-					{
-						memset(Launcher_FavouritesBuffer()[i], 0x00, LAUNCHER_FAVOURITE_PATH_LEN);
-						dmaCopy(Launcher_FavouritesBuffer()[i + 1], Launcher_FavouritesBuffer()[i], LAUNCHER_FAVOURITE_PATH_LEN);
-					}
-					if(launcher_favourite_count)
-						launcher_favourite_count--;
-					memset(Launcher_FavouritesBuffer()[launcher_favourite_count], 0x00, LAUNCHER_FAVOURITE_PATH_LEN);
-					if(launcher_favourite_index >= launcher_favourite_count)
-						launcher_favourite_index = 0;
-				}
-				else
-				{
-					/* Append new favourites directly. Rewriting the whole favourites file
-					through the shared cache could drop existing entries on this kernel. */
-					Launcher_AppendFavouriteFullPath(full);
-				}
-				if(fav_index >= 0)
-					Launcher_SaveFavourites();
-				launcher_force_full_redraw = 1;
-				break;
-			}
-			else if(keysdown & KEY_B)
-			{
-				UIAudio_PlayBack();
-				launcher_force_full_redraw = 1;
-				break;
-			}
-		}
-	}
-}
-
-static void Launcher_FavouritePrompt(u32 show_offset, u32 file_select)
+static u32 Launcher_ToggleFavourite(u32 show_offset, u32 file_select)
 {
 	char full[512];
 	u32 absolute_index = Launcher_ResolveListEntryIndex(show_offset + file_select);
 
 	if(!Launcher_GetSDFileFullPath(absolute_index, full, sizeof(full)))
-		return;
-	Launcher_FavouritePromptFullPath(full);
+		return 0;
+	return Launcher_ToggleFavouriteFullPath(full);
 }
 
 //---------------------------------------------------------------------------------
@@ -15646,11 +15604,14 @@ re_showfile:
 					if((page_num == SD_list) && !recents_view_active && (selected_index >= folder_total) &&
 					Launcher_IsLaunchableFilename((TCHAR*)Launcher_FileIdentityName(&pFilename_buffer[selected_index - folder_total])))
 					{
-						UIAudio_PlaySfx(UI_SFX_MENU);
 						p_folder_select_show_offset[folder_select] = show_offset;
 						p_folder_select_file_select[folder_select] = file_select;
 						Launcher_SaveSDState();
-						Launcher_FavouritePrompt(show_offset, file_select);
+						if(Launcher_ToggleFavourite(show_offset, file_select))
+						{
+							launcher_force_full_redraw = 1;
+							UIAudio_PlaySfx(UI_SFX_MENU);
+						}
 						Launcher_WaitForMenuKeyRelease(KEY_SELECT);
 						select_tap_pending = 0;
 						select_tap_timer = 0;
@@ -15659,10 +15620,13 @@ re_showfile:
 						launcher_vertical_folder_label_dirty = 1;
 						goto refind_file;
 					}
-					else if((page_num == SD_list) && recents_view_active && recents_view_favourites && (selected_index < game_total_SD))
+					else if((page_num == SD_list) && recents_view_active && (selected_index < game_total_SD))
 					{
-						UIAudio_PlaySfx(UI_SFX_MENU);
-						Launcher_FavouritePromptFullPath(p_recently_play[selected_index]);
+						if(Launcher_ToggleFavouriteFullPath(p_recently_play[selected_index]))
+						{
+							launcher_force_full_redraw = 1;
+							UIAudio_PlaySfx(UI_SFX_MENU);
+						}
 						Launcher_WaitForMenuKeyRelease(KEY_SELECT);
 						select_tap_pending = 0;
 						select_tap_timer = 0;

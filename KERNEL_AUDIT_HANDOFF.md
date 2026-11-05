@@ -1,5 +1,13 @@
 # DS Style Kernel Audit — Standalone Handoff
 
+## 2026-11-05 — UI integration complete, exploratory candidate validated
+
+- Finished the selective FrankieT19 v8 UI integration already checkpointed on `exploratory`. Preserved the optional Clean list and Remember cheats settings, the existing Start-screen option, and other local protections.
+- Fixed the remaining Select double-tap gap: games in the SD list, Recents, or Favourites now toggle favourite state immediately without the old confirmation modal. Added focused host coverage for add/remove, capacity and blocked-cache behavior. Added Auto-theme boundary coverage for 07:00, 08:00, 19:00 and 20:00.
+- Forced devkitARM 16.1.0 production build PASS at 2,009,752 bytes, 87,400 below 2 MiB. All 21 host scripts PASS. `scripts/rebuild-and-verify-audit.sh` PASS, including Cppcheck, browser, artwork, carousel and cheat checks. Durable outputs: `files/upstream-ui/final-build.log`, `all-host-suites.log`, `final-audit.log`.
+- Candidate `files/candidate/8.3.0-rc1/ezkernelnew.bin`: 2,009,752 bytes, SHA-256 `4dfe5f0c1bfc4bda1b58f71c6b03fab0438e612a31725f9c3b516afb2033476f`, About `DS Style Merkin Mix 8.3.0-rc1`. Link map: `pReadCache` at `0x02013ed0` (`0x20000` bytes), EWRAM `__end__=0x0203a140`, configured heap end `0x0203c000`; motion, SYSTEM-browser and launch-indicator state are dedicated EWRAM objects. Candidate behavior and limitations are recorded in `files/UPSTREAM_UI_CANDIDATE.md`.
+- No emulator or physical-hardware validation was available; the candidate is not a stable release and no tag/GitHub release was created. Stable v8.2.0 remains unchanged. Existing F-011/F-022/F-032/F-036 audit risks remain open.
+
 ## 2026-11-05 — Integration resumed, buildable source checkpoint
 
 - Removed duplicate nonzero wrap declaration; retained EWRAM BSS and runtime missing-key default On. Explicit Off, canonical/legacy key precedence and present-invalid fallback Off remain preserved.

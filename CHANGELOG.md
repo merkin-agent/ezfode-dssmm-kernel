@@ -1,5 +1,15 @@
 # Changelog
 
+## DS Style Merkin Mix 8.3.0-rc3 — exploratory test candidate
+
+This is an exploratory test build, not a stable release.
+
+### Changes since 8.3.0-rc2
+
+- Fixed Clean list Off in browser titles: original extensions and bracketed text now remain visible in horizontal and vertical views.
+- Reflowed the “Using DS Style” help topic so each page begins with its section heading and has up to eight description lines.
+- Aligned LED setting values by widening the label column one character.
+
 ## DS Style Merkin Mix 8.3.0-rc2 — exploratory test candidate
 
 This is an exploratory test build, not a stable release.

@@ -1946,6 +1946,12 @@ static void Launcher_GetListDisplayName(const TCHAR *src, char *dst, u32 dst_siz
 	strncpy(dst, src, dst_size - 1);
 	dst[dst_size - 1] = '\0';
 }
+
+static void Launcher_GetBrowserDisplayTitle(const TCHAR *src, char *dst, u32 dst_size)
+{
+	Launcher_GetListDisplayName(src, dst, dst_size);
+}
+
 static u32 Launcher_BuildFullPath(const TCHAR *path, const TCHAR *name, char *out, u32 out_size);
 
 static void Launcher_FormatIndexedDisplayName(const TCHAR *display_name, const TCHAR *alias,
@@ -8833,7 +8839,7 @@ static void __attribute__((unused)) Draw_ModernLauncher_SD_State(u32 show_offset
 	selected_use_preview_panel = Launcher_ShouldUsePreviewPanel(&selected);
 
 	memset(cleaned, 0, sizeof(cleaned));
-	Launcher_GetDisplayTitleBounded(selected.name, cleaned, sizeof(cleaned));
+	Launcher_GetBrowserDisplayTitle(selected.name, cleaned, sizeof(cleaned));
 	line_count = Launcher_SplitTitle(cleaned, lines);
 
 	if(!Launcher_DrawMotionRest())
@@ -8989,7 +8995,7 @@ static void Draw_ModernLauncher_SD(u32 show_offset, u32 file_select, u32 haveThu
 	selected_use_preview_panel = Launcher_ShouldUsePreviewPanel(&selected);
 
 	memset(cleaned, 0, sizeof(cleaned));
-	Launcher_GetDisplayTitleBounded(selected.name, cleaned, sizeof(cleaned));
+	Launcher_GetBrowserDisplayTitle(selected.name, cleaned, sizeof(cleaned));
 	line_count = Launcher_SplitTitle(cleaned, lines);
 
 	if(!Launcher_DrawMotionRest())
@@ -9273,7 +9279,7 @@ static void Draw_ModernLauncher_SD_Vertical_State(u32 show_offset, u32 file_sele
 	}
 	else Launcher_RestoreBGClip((u16*)Launcher_GetBGImage(), btn_x - 1, btn_y - 1, btn_w + 2, btn_h + 2);
 	memset(cleaned, 0, sizeof(cleaned));
-	Launcher_CleanTitle(selected.name, cleaned, sizeof(cleaned));
+	Launcher_GetBrowserDisplayTitle(selected.name, cleaned, sizeof(cleaned));
 	line_count = Launcher_SplitTitle(cleaned, lines);
 
 	text_y = btn_y + ((btn_h - (line_count * line_h)) / 2);
@@ -11270,7 +11276,7 @@ static void Launcher_LedSettingsGetLine(u32 item, char *out, u32 out_size)
         default: break;
     }
 
-    snprintf(out, out_size, "%-11s %s", label, value);
+    snprintf(out, out_size, "%-12s %s", label, value);
 }
 
 static void Launcher_LedSettingsToggle(u32 item)
@@ -11465,7 +11471,7 @@ static void Launcher_SaveUnifiedSettings(void)
         f_printf(&f, "# List folders keeps non-game folders in list view.\n");
         f_printf(&f, "List folders = %s\n", launcher_list_folders ? "On" : "Off");
         f_printf(&f, "\n# Options: On, Off\n");
-        f_printf(&f, "# Clean list removes extensions/brackets and hides right-side file details in list view.\n");
+        f_printf(&f, "# Clean list removes extensions/brackets in browser names and hides right-side details in list view.\n");
         f_printf(&f, "Clean list = %s\n", launcher_clean_list ? "On" : "Off");
         f_printf(&f, "\n# Options: On, Off, On, Not SYSTEM\n");
         f_printf(&f, "# On, Not SYSTEM disables wrap-around while browsing /SYSTEM and its subdirectories.\n");
@@ -12711,51 +12717,56 @@ static void Launcher_ShowHelpTopic(u32 topic)
         "- Time sets the cartridge",
         "  clock shown in the top bar.",
         "- Clock format chooses a",
-        "  12-hour or 24-hour clock.",
-        "- Language changes the menu",
-        "  text used by DS Style.",
-        "- Sounds turns menu audio",
-        "  effects on or off.",
+        "  12-hour or 24-hour time.",
+        "- Language changes menu text.",
+        "- Sounds toggles menu audio.",
+        "",
+        "",
         "Interface",
         "- View options groups artwork",
-        "  and browsing preferences for",
-        "  the selected View mode.",
-        "- Clean list names can be",
-        "  turned On or Off in View",
-        "  options; Off keeps details.",
+        "  and browsing preferences.",
+        "- Clean list controls whether",
+        "  browser names are shortened.",
         "- List folders keeps non-game",
-        "  folders in list view.",
-        "- Wrap around loops browsing",
-        "  between the first and last",
-        "  games. On, Not SYSTEM keeps",
-        "  SYSTEM browsing non-wrapping.",
+        "  folders visible in lists.",
+        "",
+        "",
         "Interface",
+        "- Wrap around loops browsing",
+        "  between first and last games.",
+        "  On, Not SYSTEM excludes it.",
         "- Theme chooses Light or Dark.",
         "  Auto uses Dark from 8 pm to",
         "  8 am, then returns to Light.",
-        "- Colour changes accent",
-        "  colours across DS Style.",
+        "",
+        "",
+        "Interface",
+        "- Colour changes accents.",
         "- Load style prepares another",
         "  kernel from SYSTEM/KERNELS",
         "  for installation.",
+        "- View mode chooses List, List",
+        "  + Art, Horizontal or Vertical.",
+        "",
+        "",
         "Interface",
-        "- View mode chooses List,",
-        "  List + Art, Horizontal",
-        "  or Vertical.",
-        "- Thumbnails chooses Title",
-        "  or Box artwork.",
+        "- Thumbnails chooses Title or",
+        "  Box artwork.",
         "- Boot to chooses Start screen,",
         "  SD, NOR, Last game, Recents",
         "  or Favourites at startup.",
+        "",
+        "",
+        "",
         "System files",
         "- Open SYSTEM in Settings to",
         "  browse system files and saves.",
         "- Press B to go up a folder.",
-        "  From SYSTEM, B returns to",
-        "  Settings, not the SD root.",
+        "  From SYSTEM, B returns to Settings.",
         "- Hold Start on a file to",
         "  delete it after confirming.",
         "  Back up saves before deleting.",
+        "",
         "Artwork display",
         "- Art position changes with",
         "  the selected View mode.",

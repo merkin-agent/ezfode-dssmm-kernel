@@ -1,5 +1,15 @@
 # Changelog
 
+## DS Style Merkin Mix 8.4.0
+
+### NOR flash improvements
+
+- Restored translated A/B button hints in NOR menus and confirmation pop-ups.
+- Fixed the format confirmation layout, cancellation flow, and progress display; formatting now shows a centered wait message and an active progress bar.
+- Added a centered wait message while deleting a NOR title and erase every allocated block of the newest title before clearing its catalog entry.
+- Preserved each NOR title's source directory so mirrored artwork works for games stored in nested folders. Filename artwork now falls back through custom art, game-code art, mirrored art, and root-level artwork.
+- Open NOR installation sources through their checked directory path, including games in the SD card root.
+
 ## DS Style Merkin Mix 8.3.0
 
 Stable release with the 8.3.0 interface refinements, startup updates, and validated launcher memory-placement improvements.

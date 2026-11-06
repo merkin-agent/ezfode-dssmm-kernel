@@ -6487,6 +6487,49 @@ static u32 Launcher_LoadMirroredThumbnail(const char *rom_dir, const char *filen
 	return 0;
 }
 
+static u32 Launcher_LoadRootNamedThumbnail(const char *filename, u8 *dst)
+{
+	char name[104];
+	char picpath[160];
+	int written;
+
+	if(!filename || !dst)
+		return 0;
+	Launcher_CustomThumbFileName(filename, name, sizeof(name));
+	if(!name[0])
+		return 0;
+	written = snprintf(picpath, sizeof(picpath), "%s/%s.bmp",
+		Launcher_ThumbnailFolder(), name);
+	if(written <= 0 || (u32)written >= sizeof(picpath))
+		return 0;
+	return Launcher_LoadThumbnailFile(picpath, dst);
+}
+
+static u32 Launcher_LoadNorThumbnail(const char *filename, const char *rom_dir,
+	const u8 gamecode[4], u8 *dst, u32 *custom_thumbnail)
+{
+	char custom_name[104];
+
+	if(custom_thumbnail)
+		*custom_thumbnail = 0;
+	if(!filename || !filename[0] || !dst)
+		return 0;
+
+	Launcher_CustomThumbFileName(filename, custom_name, sizeof(custom_name));
+	if(Launcher_LoadCustomThumbnailByName(custom_name, dst))
+	{
+		if(custom_thumbnail)
+			*custom_thumbnail = 1;
+		return 1;
+	}
+	if(Launcher_IsValidGameCodeBytes(gamecode) &&
+		Launcher_LoadThumbnailByGameCode(gamecode, dst))
+		return 1;
+	if(rom_dir && rom_dir[0] && Launcher_LoadMirroredThumbnail(rom_dir, filename, dst))
+		return 1;
+	return Launcher_LoadRootNamedThumbnail(filename, dst);
+}
+
 /* An optional per-extension image can be placed at CUSTOM/<extension>.bmp.
    This is deliberately opened directly rather than through the old flat
    CUSTOM manifest, whose historical cap is 256 entries. */
@@ -8017,20 +8060,10 @@ static u32 Launcher_LoadThumbDataForIndex(u32 absolute_index, u8 *thumb_data, u3
 
 	if(Launcher_IsNORPage())
 	{
-		u32 has_thumbnail = 0;
 		name = pNorFS[absolute_index].filename;
-		if(name)
-		{
-			TCHAR custom_name[104];
-			Launcher_CustomThumbFileName(name, custom_name, sizeof(custom_name));
-			has_thumbnail = Launcher_LoadCustomThumbnailByName(custom_name, thumb_data - LAUNCHER_THUMB_BMP_HEADER);
-			if(has_thumbnail && custom_thumbnail)
-				*custom_thumbnail = 1;
-		}
-		if(!has_thumbnail && Launcher_IsValidGameCodeBytes((const u8*)&pNorFS[absolute_index].gamename[12]))
-			has_thumbnail = Launcher_LoadThumbnailByGameCode((const u8*)&pNorFS[absolute_index].gamename[12],
-			thumb_data - LAUNCHER_THUMB_BMP_HEADER);
-		return has_thumbnail;
+		return Launcher_LoadNorThumbnail(name, Read_NOR_art_path(absolute_index),
+			(const u8*)&pNorFS[absolute_index].gamename[12],
+			thumb_data - LAUNCHER_THUMB_BMP_HEADER, custom_thumbnail);
 	}
 
 	if(absolute_index >= (folder_total + game_total_SD))
@@ -9321,6 +9354,7 @@ u32 SD_list_L_START(u32 show_offset,u32 file_select,u32 folder_total)
 	const TCHAR *identity = Launcher_FileIdentityName(record);
 	//u32 res;
 	Launcher_DrawPopupPanel(36, 25);//show menu pic
+	Launcher_DrawPopupButtonHints();
 
 
 	char *msg1 = "Delete this file?"; int x1 = (240 - strlen(msg1) * 6) / 2;
@@ -14844,7 +14878,8 @@ int main(void) {
 	if(game_total_NOR==0)
 	{
 		memset(pNorFS,00,sizeof(FM_NOR_FS)*MAX_NOR);
-		if(!Save_NOR_info((u16*)pNorFS,sizeof(FM_NOR_FS)*MAX_NOR))
+		if(!Save_NOR_info_with_art_path((u16*)pNorFS,
+			sizeof(FM_NOR_FS)*MAX_NOR, 0, 0, 1))
 			Show_error_num(3);
 	}
 
@@ -16594,6 +16629,7 @@ u8 FRAM_save_op(u8 OP)
 		if(res == FR_OK)//have a old save file
 		{
 			DrawHZText12(gl_file_exist,0,66,74,RGB(31,00,00),1);
+			Launcher_DrawPopupButtonHints();
 			while(1){
 				VBlankIntrWait();
 				scanKeys();
@@ -16647,6 +16683,32 @@ static u32 Launcher_CanDeleteNorTitle(u32 selected_index)
 	return 1;
 }
 
+static u32 Launcher_EraseNorTitle(u32 erase_start, u32 file_size)
+{
+	const u32 nor_capacity = 0x04000000UL;
+	const u32 nor_block_size = 0x00020000UL;
+	u32 offset;
+
+	if(!file_size || erase_start % nor_block_size ||
+		file_size % nor_block_size || erase_start > nor_capacity ||
+		file_size > nor_capacity - erase_start)
+		return 0;
+
+	{
+		char status[] = "Deleting, please wait...";
+		u32 text_width = DrawText12VisibleLength(status) * 6;
+		Launcher_DrawPopupPanel(36, 25);
+		DrawHZText12(status, 0, 36 + (168 - text_width) / 2, 68,
+			gl_color_text, 1);
+	}
+	for(offset = 0; offset < file_size; offset += nor_block_size)
+	{
+		if(!Block_Erase(erase_start + offset))
+			return 0;
+	}
+	return 1;
+}
+
 static void Launcher_WaitForNorDeleteNotice(void)
 {
 	while(1)
@@ -16662,6 +16724,8 @@ static void Launcher_WaitForNorDeleteNotice(void)
 	}
 }
 
+#define LAUNCHER_NOR_DELETE_NOTICE_Y 34
+
 static void Launcher_DrawNorDeleteNotice(void)
 {
 	u32 glyph_width = (gl_select_lang == 0xE2E2) ? 12 : 6;
@@ -16675,14 +16739,15 @@ static void Launcher_DrawNorDeleteNotice(void)
 	else
 		text_x = 36;
 
-	DrawHZText12(gl_nor_delete_info,0,text_x,103,gl_color_text,1);
+	DrawHZText12(gl_nor_delete_info,0,text_x,LAUNCHER_NOR_DELETE_NOTICE_Y,
+		gl_color_text,1);
 }
 
 static void Launcher_ClearNorDeleteNotice(void)
 {
 	const u32 popup_width = 168;
 	const u32 popup_y = 25;
-	const u32 notice_y = 103;
+	const u32 notice_y = LAUNCHER_NOR_DELETE_NOTICE_Y;
 
 	Launcher_DrawPicClipStride(((u16*)gImage_MENU) + (notice_y - popup_y) * popup_width,
 		popup_width, 36, notice_y, popup_width, 13);
@@ -16724,6 +16789,7 @@ u8 NOR_list_MENU(u32 show_offset,	u32 file_select)
 	else
 		MENU_max = first_game ? 3 : 1;
 	Launcher_DrawPopupPanel(36, 25);//show menu pic
+	Launcher_DrawPopupButtonHints();
 
 	while(1)//3
 	{
@@ -16810,8 +16876,17 @@ u8 NOR_list_MENU(u32 show_offset,	u32 file_select)
 				UIAudio_PlayAccept();
 				if(delete_allowed && Launcher_CanDeleteNorTitle(selected_index))
 				{
-					if(!Block_Erase(gl_norOffset-pNorFS[selected_index].filesize))
+					if(!Launcher_EraseNorTitle(
+						gl_norOffset - pNorFS[selected_index].filesize,
+						pNorFS[selected_index].filesize))
 						Show_error_num(3);
+					else
+					{
+						memset(&pNorFS[selected_index], 0, sizeof(FM_NOR_FS));
+						if(!Save_NOR_info_with_art_path((u16*)pNorFS,
+							sizeof(FM_NOR_FS) * MAX_NOR, selected_index, "", 0))
+							Show_error_num(3);
+					}
 				}
 				else
 				{
@@ -16825,9 +16900,19 @@ u8 NOR_list_MENU(u32 show_offset,	u32 file_select)
 				if(!delete_allowed)
 					Launcher_ClearNorDeleteNotice();
 				UIAudio_PlayAccept();
-						u8 format_result = FormatNor();
-						if(format_result == 2 || format_result == 3)
-							Show_error_num(3);
+				Launcher_DrawPopupPanel(36, 25);
+				Launcher_DrawPopupButtonHints();
+				u8 format_result = FormatNor();
+				if(format_result == 0)
+				{
+					UIAudio_PlayBack();
+					Launcher_DrawPopupPanel(36, 25);
+					Launcher_DrawPopupButtonHints();
+					re_menu = 1;
+					continue;
+				}
+				if(format_result == 2 || format_result == 3)
+					Show_error_num(3);
 				return 1;
 			}
 			else if(action_line==3){ //load save data to FRAM
@@ -17395,7 +17480,7 @@ load_file:
 	case 2://WRITE TO NOR CLEAN
 		UIAudio_StopForSharedBufferUse();
 		f_chdir(currentpath);//return to game folder
-				res = Loadfile2NOR(pfilename, gl_norOffset,0x0,SAVEMODE);
+				res = Loadfile2NOR(pfilename, currentpath, gl_norOffset,0x0,SAVEMODE);
 				if(res==0)//ok
 				{
 					if(gl_norOffset==0)//first game need set saveMODE
@@ -17441,7 +17526,7 @@ load_file:
 					}
 					needpatch = 1;
 				}
-				res = Loadfile2NOR(pfilename, gl_norOffset,needpatch,SAVEMODE);
+				res = Loadfile2NOR(pfilename, currentpath, gl_norOffset,needpatch,SAVEMODE);
 				//wait_btn();
 				if(res==0)
 				{

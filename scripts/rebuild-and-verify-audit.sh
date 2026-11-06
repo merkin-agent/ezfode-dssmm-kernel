@@ -84,6 +84,18 @@ scripts/test-save-popup-artwork-host.sh
 printf '\nRunning Wrap around SYSTEM-scope regression test...\n'
 scripts/test-launcher-wrap-system-host.sh
 
+printf '\nRunning popup button-hint regression test...\n'
+scripts/test-popup-button-hints-host.sh
+
+printf '\nRunning NOR filename-art fallback regression test...\n'
+scripts/test-nor-thumbnail-fallback-host.sh
+
+printf '\nRunning NOR format progress regression test...\n'
+scripts/test-nor-format-progress-host.sh
+
+printf '\nRunning NOR title deletion regression test...\n'
+scripts/test-nor-delete-title-host.sh
+
 printf '\nRunning settings readers regression test...\n'
 scripts/test-launcher-settings-readers-host.sh
 

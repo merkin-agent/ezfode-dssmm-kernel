@@ -159,7 +159,7 @@ const char en_lang[]="English";
 const char en_set_btn[]="Set";
 const char en_ok_btn[]=" OK";
 const char en_formatnor_info1[]="Are you sure?";
-const char en_formatnor_info2[]="This will take a while.";
+const char en_formatnor_info2[]="Formatting, this may take some time. Please wait...";
 
 const char en_theme_credit[]="DS Style v6";
 const char en_theme_credit2[]="by FrankieT19";
@@ -417,7 +417,7 @@ void LoadChinese(void)
 	gl_set_btn = (char*)zh_set_btn;
 	gl_ok_btn = (char*)zh_ok_btn;
 	gl_formatnor_info1 = (char*)zh_formatnor_info;
-	gl_formatnor_info2= " ";
+	gl_formatnor_info2 = (char*)en_formatnor_info2;
 
 	temp = " ";
 

@@ -96,6 +96,9 @@ scripts/test-nor-format-progress-host.sh
 printf '\nRunning NOR title deletion regression test...\n'
 scripts/test-nor-delete-title-host.sh
 
+printf '\nRunning NOR write failure classification regression test...\n'
+scripts/test-nor-write-result-host.sh
+
 printf '\nRunning settings readers regression test...\n'
 scripts/test-launcher-settings-readers-host.sh
 

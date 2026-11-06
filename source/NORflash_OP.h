@@ -1,6 +1,8 @@
 #include <gba_base.h>
 
 #include "ff.h"
+#include "nor_write_result.h"
+
 //---------------------------------------------------------------
 void Chip_Reset();
 u8 Block_Erase(u32 blockAdd);

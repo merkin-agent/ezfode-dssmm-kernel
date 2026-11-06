@@ -9557,6 +9557,18 @@ void Show_error_num(u8 error_num)
 		case 0x6:
 			sprintf(msg,"%s",gl_error_6);
 			break;
+		case 0x7:
+			sprintf(msg,"%s",gl_nor_device_error);
+			break;
+		case 0x8:
+			sprintf(msg,"%s",gl_nor_erase_error);
+			break;
+		case 0x9:
+			sprintf(msg,"%s",gl_nor_program_error);
+			break;
+		case 0xA:
+			sprintf(msg,"%s",gl_nor_catalog_error);
+			break;
 		default:
 			sprintf(msg,"%s","error?");
 			break;
@@ -17491,14 +17503,20 @@ load_file:
 					launcher_current_theme_bg = 0;
 					return 2;
 				}
-				else if(res==2)
+				else if(res == NOR_WRITE_RESULT_FULL)
 				{
 					Clear(0,160-15,200,15,gl_color_cheat_black,1);
 					DrawHZText12(gl_NOR_full,0,0,160-15, gl_color_NORFULL,1);//"NOR FULL!"
 					wait_btn();
 					return 1;
 				}
-				else if(res==1)
+				else if(res >= NOR_WRITE_RESULT_DEVICE_ERROR &&
+					res <= NOR_WRITE_RESULT_CATALOG_ERROR)
+				{
+					Show_error_num(NOR_WriteResultErrorNumber(res));
+					return 0;
+				}
+				else if(res == NOR_WRITE_RESULT_FILE_ERROR)
 				{
 					Show_error_num(1);
 					return 0;
@@ -17538,14 +17556,20 @@ load_file:
 					launcher_current_theme_bg = 0;
 					return 2;
 				}
-				else if(res==2)
+				else if(res == NOR_WRITE_RESULT_FULL)
 				{
 			Clear(0,160-15,200,15,gl_color_cheat_black,1);
 					DrawHZText12(gl_NOR_full,0,0,160-15, gl_color_NORFULL,1);//"NOR FULL!"
 					wait_btn();
 					return 0;
 				}
-				else if(res==1)
+				else if(res >= NOR_WRITE_RESULT_DEVICE_ERROR &&
+					res <= NOR_WRITE_RESULT_CATALOG_ERROR)
+				{
+					Show_error_num(NOR_WriteResultErrorNumber(res));
+					return 0;
+				}
+				else if(res == NOR_WRITE_RESULT_FILE_ERROR)
 				{
 					Show_error_num(1);
 					return 0;

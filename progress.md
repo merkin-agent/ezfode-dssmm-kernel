@@ -1,5 +1,12 @@
 # DS Style Kernel Audit Progress
 
+## 2026-11-06 — NOR write error diagnostics and remaining known issue
+
+- Split NOR write results into source-file, unsupported-device, capacity, erase, program, and catalog-save outcomes. The UI now distinguishes SD/file failures from NOR erase/program and metadata-save failures, which makes the reported halfway write failure diagnosable on the next occurrence without relying on a specific NOR chip or board revision.
+- Added `tests/nor-write-result-host.c` and wired its script into the full audit. The focused check and `scripts/rebuild-and-verify-audit.sh` pass. Production image: 2,011,904 bytes, SHA-256 `ef9b71be9125fed419d22036bcd05024f5e9b90ce922a9bf298c6386eae8b17d`; candidate at `files/candidate/8.4.0-write-error-diagnostics-test/ezkernelnew.bin`.
+- **Known issue:** NOR catalog plus path-sidecar persistence still rewrites one metadata sector in place, so power loss or a device failure during that operation can leave metadata incomplete. An atomic second copy cannot be added safely in a chip/revision-agnostic way: the documented map does not assign `0x7C0000`, but there is no guarantee that undocumented revisions reserve it. Do not write a journal there without validated hardware layouts.
+- A failed ROM write can leave an unlisted partial tail. It is not cataloged until the entire write succeeds; a later append reuses that catalog-derived tail and erases its target blocks. No automatic cleanup is attempted after an error.
+
 ## 2026-11-06 — DS Style Merkin Mix 8.4.0 published
 
 - Committed and pushed `5b5797442640da1ebdc29cab2eb1e841e88e6925`; tagged `v8.4.0`. Published stable [v8.4.0](https://github.com/merkin-agent/ezfode-dssmm-kernel/releases/tag/v8.4.0).

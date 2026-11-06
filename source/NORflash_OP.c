@@ -435,13 +435,13 @@ u32 Loadfile2NOR(TCHAR *filename, const TCHAR *rom_dir, u32 NORaddress,
 	u32 add_patch = 0;
 
 	if(filename == NULL || (NORaddress % NOR_BLOCK_SIZE) != 0)
-		return 1;
+		return NOR_WRITE_RESULT_FILE_ERROR;
 	if(game_total_NOR >= MAX_NOR || NORaddress >= NOR_CAPACITY_BYTES)
-		return 2;
+		return NOR_WRITE_RESULT_FULL;
 	if(filename[0] == '/')
 	{
 		if(strlen(filename) >= sizeof(source_path))
-			return 1;
+			return NOR_WRITE_RESULT_FILE_ERROR;
 		strcpy(source_path, filename);
 	}
 	else if(rom_dir && rom_dir[0])
@@ -450,31 +450,31 @@ u32 Loadfile2NOR(TCHAR *filename, const TCHAR *rom_dir, u32 NORaddress,
 		int written = snprintf(source_path, sizeof(source_path), "%s%s%s",
 			rom_dir, rom_dir[dir_length - 1] == '/' ? "" : "/", filename);
 		if(written <= 0 || (size_t)written >= sizeof(source_path))
-			return 1;
+			return NOR_WRITE_RESULT_FILE_ERROR;
 	}
 	else
 	{
 		if(strlen(filename) >= sizeof(source_path))
-			return 1;
+			return NOR_WRITE_RESULT_FILE_ERROR;
 		strcpy(source_path, filename);
 	}
 
 	norid = Read_S98NOR_ID();
 	if(norid != 0x223D)//S98
-		return 1;
+		return NOR_WRITE_RESULT_DEVICE_ERROR;
 
 	res = f_open(&gfile, source_path, FA_READ);
 	if(res != FR_OK)
-		return 1;
+		return NOR_WRITE_RESULT_FILE_ERROR;
 	file_open = 1;
-	result = 1;
+	result = NOR_WRITE_RESULT_FILE_ERROR;
 
 	filesize = f_size(&gfile);
 	if(filesize < 0xB4)
 		goto close_file;
 	if(filesize > NOR_CAPACITY_BYTES)
 	{
-		result = 2;
+		result = NOR_WRITE_RESULT_FULL;
 		goto close_file;
 	}
 
@@ -499,7 +499,7 @@ u32 Loadfile2NOR(TCHAR *filename, const TCHAR *rom_dir, u32 NORaddress,
 	}
 	if(fileneedsize > (NOR_CAPACITY_BYTES - NORaddress))
 	{
-		result = 2; //Not enough NOR space or game slots
+		result = NOR_WRITE_RESULT_FULL; //Not enough NOR space or game slots
 		goto close_file;
 	}
 
@@ -513,7 +513,10 @@ u32 Loadfile2NOR(TCHAR *filename, const TCHAR *rom_dir, u32 NORaddress,
 	tmpNorFS.savemode = SAVEMODE;
 
 	if(!NOR_EraseAllPPB())
+	{
+		result = NOR_WRITE_RESULT_ERASE_ERROR;
 		goto close_file;
+	}
 
 	Clear(60,160-15,120,15,gl_color_cheat_black,1);
 	DrawHZText12(gl_writing,0,70,160-15,0x7fff,1);
@@ -543,25 +546,32 @@ u32 Loadfile2NOR(TCHAR *filename, const TCHAR *rom_dir, u32 NORaddress,
 			GBApatch_Cleanrom_NOR((u32*)pReadCache,blocknum);
 		}
 
-		if(!Block_Erase(blocknum+NORaddress) ||
-		   !WriteFlash_with32word(blocknum+NORaddress,pReadCache,NOR_BLOCK_SIZE))
+		if(!Block_Erase(blocknum+NORaddress))
+		{
+			result = NOR_WRITE_RESULT_ERASE_ERROR;
 			goto close_file;
+		}
+		if(!WriteFlash_with32word(blocknum+NORaddress,pReadCache,NOR_BLOCK_SIZE))
+		{
+			result = NOR_WRITE_RESULT_PROGRAM_ERROR;
+			goto close_file;
+		}
 	}
 
 	if(f_close(&gfile) != FR_OK)
 	{
 		file_open = 0;
-		return 1;
+		return NOR_WRITE_RESULT_FILE_ERROR;
 	}
 	file_open = 0;
 
 	if(have_patch && add_patch)
 	{
 		if(!Block_Erase(blocknum+NORaddress))
-			return 1;
+			return NOR_WRITE_RESULT_ERASE_ERROR;
 		GBApatch_NOR((u32*)pReadCache,NOR_BLOCK_SIZE,blocknum);
 		if(!WriteFlash_with32word(blocknum+NORaddress,pReadCache,NOR_BLOCK_SIZE))
-			return 1;
+			return NOR_WRITE_RESULT_PROGRAM_ERROR;
 	}
 
 	// Publish the new slot only while persistence sees it; restore RAM on failure.
@@ -570,8 +580,8 @@ u32 Loadfile2NOR(TCHAR *filename, const TCHAR *rom_dir, u32 NORaddress,
 	persist_context.clear_art_paths = 0;
 	if(!NOR_CommitCatalogSlot(&pNorFS[game_total_NOR], &tmpNorFS, &previousNorFS,
 		sizeof(FM_NOR_FS), NOR_PersistCatalog, &persist_context))
-		return 1;
-	return 0;
+		return NOR_WRITE_RESULT_CATALOG_ERROR;
+	return NOR_WRITE_RESULT_OK;
 
 close_file:
 	if(file_open)

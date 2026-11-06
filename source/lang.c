@@ -88,6 +88,10 @@ char* gl_error_3;
 char* gl_error_4;
 char* gl_error_5;
 char* gl_error_6;
+char* gl_nor_device_error;
+char* gl_nor_erase_error;
+char* gl_nor_program_error;
+char* gl_nor_catalog_error;
 
 char* gl_save_sav;
 char* gl_save_ing;
@@ -207,6 +211,10 @@ const char en_error_3[]=DSTEXT_ERROR_SAVE;
 const char en_error_4[]=DSTEXT_ERROR_READ_SAVE;
 const char en_error_5[]=DSTEXT_ERROR_MAKE_SAVE;
 const char en_error_6[]=DSTEXT_ERROR_RTS;
+const char en_nor_device_error[]="Unsupported NOR device";
+const char en_nor_erase_error[]="NOR erase failed";
+const char en_nor_program_error[]="NOR program failed";
+const char en_nor_catalog_error[]="NOR catalog save failed";
 
 
 const char en_save_sav[]=DSTEXT_STATUS_COPY_SAVE;
@@ -460,6 +468,10 @@ void LoadChinese(void)
 	gl_error_4 = (char*)zh_error_4;
 	gl_error_5 = (char*)zh_error_5;
 	gl_error_6 = (char*)zh_error_6;
+	gl_nor_device_error = (char*)en_nor_device_error;
+	gl_nor_erase_error = (char*)en_nor_erase_error;
+	gl_nor_program_error = (char*)en_nor_program_error;
+	gl_nor_catalog_error = (char*)en_nor_catalog_error;
 
 	gl_save_sav = (char*)zh_save_sav;
 	gl_save_ing = (char*)zh_save_ing;
@@ -579,6 +591,10 @@ void LoadEnglish(void)
 	gl_error_4 = (char*)en_error_4;
 	gl_error_5 = (char*)en_error_5;
 	gl_error_6 = (char*)en_error_6;
+	gl_nor_device_error = (char*)en_nor_device_error;
+	gl_nor_erase_error = (char*)en_nor_erase_error;
+	gl_nor_program_error = (char*)en_nor_program_error;
+	gl_nor_catalog_error = (char*)en_nor_catalog_error;
 
 	gl_save_sav = (char*)en_save_sav;
 	gl_save_ing = (char*)en_save_ing;
@@ -695,6 +711,10 @@ void LoadThai(void)
 	gl_error_4             = (char*)th_error_4;
 	gl_error_5             = (char*)th_error_5;
 	gl_error_6             = (char*)th_error_6;
+	gl_nor_device_error   = (char*)"อุปกรณ์ NOR ไม่รองรับ";
+	gl_nor_erase_error     = (char*)"ลบ NOR ไม่สำเร็จ";
+	gl_nor_program_error   = (char*)"เขียน NOR ไม่สำเร็จ";
+	gl_nor_catalog_error   = (char*)"บันทึกรายการ NOR ไม่สำเร็จ";
 	
 	gl_save_sav            = (char*)th_save_sav;
 	gl_save_ing            = (char*)th_save_ing;

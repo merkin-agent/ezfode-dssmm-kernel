@@ -1,5 +1,32 @@
 # DS Style Kernel Audit Progress
 
+## 2026-11-06 — DS Style Merkin Mix 8.4.0 published
+
+- Committed and pushed `5b5797442640da1ebdc29cab2eb1e841e88e6925`; tagged `v8.4.0`. Published stable [v8.4.0](https://github.com/merkin-agent/ezfode-dssmm-kernel/releases/tag/v8.4.0).
+- Production candidate `files/candidate/8.4.0/ezkernelnew.bin`: 2,011,328 bytes, SHA-256 `6f6ef3814bb87105e37dccff7cb71f7d3c591da8619676e3e2dee9b11edc8be3`; About label verified as `DS Style Merkin Mix 8.4.0`.
+- Source ZIP: 18,710,852 bytes, SHA-256 `74f7e2e7655d35573bd65e9ce7f40ec038fe71186723f9fdc8c9f7e670435600`; archive integrity passed.
+- Full audit script passed on rerun after adding drawing stubs to the NOR delete host harness. This included the production build, IWRAM guard, all wired host/browser regressions, JavaScript syntax, whitespace, and configured Cppcheck.
+- Hardware report: first NOR title boots. A newly written non-first title showed a white screen; one subsequent write failed with a file error just over halfway. After rebooting and deleting the white-screen entry, a larger title was written into the freed tail and booted successfully. The intermittent white-screen/file-error cause remains unresolved; the successful larger title at the same tail position argues against a deterministic general offset bug. Do not claim broad hardware validation.
+- Existing upstream PR #2 advances with the pushed `main` head. Updating its title/body was rejected by the GitHub API with HTTP 403 `Resource not accessible by integration`; PR metadata remains stale at 8.3.0-rc1. The fork release is published; no merge is claimed.
+
+## 2026-11-06 — NOR artwork, formatting, deletion, and notice follow-up
+
+- Added a NOR metadata sidecar for each title's source directory so mirrored artwork lookup supports deep paths without changing the catalog structure or save identity. Legacy records fall back safely; title art still checks custom art, header-code art, mirrored art, then root filename art.
+- Improved formatting feedback with a wait message, fixed-width progress, one-megabyte verification updates, and cancel-to-action-menu behavior while retaining full-chip verification.
+- Fixed deletion to erase the newest title's full allocated block range rather than only its first 128 KiB; the removed catalog/path record is persisted afterward. Added host coverage for full-range erase, invalid ranges, and stopping on erase failure. This removes stale ROM data from reused NOR offsets.
+- Relocated the “Delete newest title only” notice above the menu rows. Popup regression confirms it does not overlap “Save save data.”
+- Focused NOR/artwork/progress/delete/popup tests passed. Full `scripts/rebuild-and-verify-audit.sh` passed with devkitARM 16.1.0, host regressions, browser/JS checks, Cppcheck, and whitespace checks; the final notice-coordinate adjustment was followed by an incremental production rebuild and popup test. Candidate: `files/candidate/8.3.0-nor-confirmation-test/ezkernelnew.bin`, 2,010,712 bytes, SHA-256 `cfd295b871d831ecaa894e1031752b602b716da3973c38e5b058057be66c686d`; embedded version is `DS Style Merkin Mix 8.3.0`.
+- Hardware behavior is not yet verified. Test deep-path artwork, delete-all then write and boot a new first title, format cancel, and non-newest delete notice on actual hardware before release. No commit, push, or publication was performed.
+
+## 2026-11-06 — NOR confirmation and filename-artwork test build
+
+- Owner hardware report: the NOR game-management popup no longer shows A/B button guidance, and the format confirmation text can overlap the last `Save save data` menu row. Review traced the hint regression to commit `1b6d240`, which removed `Show_MENU_btn()` while switching popup rendering without replacing its text labels.
+- Restored translated A/B hints using `gl_menu_btn` through `Launcher_DrawPopupButtonHints()` and wired it into the NOR menu plus surviving confirmation dialogs. Before opening the format confirmation, the popup panel and hints are redrawn so the menu rows are cleared; this prevents the confirmation at y=103 from covering the menu's last row at y=101.
+- Added `tests/popup-button-hints-host.c` and `scripts/test-popup-button-hints-host.sh`, covering the hint text/coordinates, NOR menu wiring, and panel redraw before format confirmation. The focused test and NOR flash/catalog host tests pass.
+- Fixed the NOR artwork lookup gap: after CUSTOM filename art and GBA header-code art miss, `Launcher_LoadNorThumbnail()` now checks `/SYSTEM/IMGS/<ROM basename>.bmp` or `/SYSTEM/IMGS2/<ROM basename>.bmp` according to the selected art style. Root-named artwork is not marked CUSTOM. The host regression extracts and tests the production loader, fallback priority, invalid/missing inputs, and both art roots; added it to the audit runner.
+- Validation passed: `scripts/rebuild-and-verify-audit.sh` completed, including production build, configured Cppcheck, popup/art fallback regressions, browser and JavaScript checks. Every `scripts/test-*.sh` host suite passed; `git diff --check` passed.
+- Refreshed test candidate: `files/candidate/8.3.0-nor-confirmation-test/ezkernelnew.bin`, 2,010,296 bytes, SHA-256 `d625c2e8ee56325509bd12e3398dee7b43e61933e62075054704ab097130d0b1`; verified `DS Style Merkin Mix 8.3.0` in the binary. This is a hardware-test candidate only, not a release; no hardware testing, commit, push, or publication is claimed. Keep the published `v8.3.0` unchanged until the owner tests it.
+
 ## 2026-11-05 — Full-codebase navigation audit checkpoint
 
 - Audited the active carousel path and prior performance evidence on `main` at `1202973`. Ordinary adjacent movement shifts a fixed three-slot cache and loads at most one newly exposed neighbor; rendering work is a fixed three/four images and five animation frames, with no loop over all titles. No count-based cache invalidation or 60-title branch was found.

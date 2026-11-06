@@ -1,5 +1,32 @@
 # DS Style Kernel Audit — Standalone Handoff
 
+## 2026-11-06 — DS Style Merkin Mix 8.4.0 published
+
+- Commit `5b5797442640da1ebdc29cab2eb1e841e88e6925` is tagged `v8.4.0` and pushed to `origin/main`. Published stable [v8.4.0](https://github.com/merkin-agent/ezfode-dssmm-kernel/releases/tag/v8.4.0).
+- Production kernel: `files/candidate/8.4.0/ezkernelnew.bin`, 2,011,328 bytes (85,824 bytes below 2 MiB), SHA-256 `6f6ef3814bb87105e37dccff7cb71f7d3c591da8619676e3e2dee9b11edc8be3`; embedded About text verified as `DS Style Merkin Mix 8.4.0`.
+- Source archive: `ezfode-dssmm-kernel-8.4.0-source.zip`, 18,710,852 bytes, SHA-256 `74f7e2e7655d35573bd65e9ce7f40ec038fe71186723f9fdc8c9f7e670435600`; ZIP integrity check passed.
+- `scripts/rebuild-and-verify-audit.sh` passed with devkitARM 16.1.0, IWRAM placement guard, all included host/browser regressions, JavaScript syntax, whitespace, and configured Cppcheck. The deletion host harness needed UI stubs after the status popup was added; the corrected harness and full rerun passed.
+- Owner hardware report: the first NOR title boots; a newly written non-first title showed a white screen. After reboot, a later write stopped with a file error just over halfway through. After another reboot, the white-screen title was deleted; a larger title was written into the freed tail space and booted successfully. This weakens a general second-title offset failure theory but does not identify the white-screen or file-error cause. No claim of broad hardware validation.
+- Existing upstream PR [#2](https://github.com/voluptuary/ezfode-dssmm-kernel/pull/2) advances with the pushed `main` head. GitHub API rejected title/body edits with HTTP 403 `Resource not accessible by integration`; its title/body still reference 8.3.0-rc1. Stable v8.4.0 release and assets are published on the fork; no PR merge is claimed.
+
+## 2026-11-06 — NOR artwork, formatting, deletion, and notice follow-up
+
+- Fixed deep-directory NOR artwork lookup by storing each title's source directory in path records appended to the existing NOR metadata sector. The fixed-size `FM_NOR_FS.filename` remains unchanged; catalog and path records are persisted together, legacy erased records resolve to no path, and the loader retains filename-root fallback.
+- NOR formatting now draws a wait message and fixed-width 16-bit progress, reports during erase verification at 1 MiB intervals, and cancel returns to the NOR title-action menu. Full-chip erase verification remains intact.
+- Found that Delete erased only the first 128 KiB of the newest title. It now erases every allocated block, then clears and persists the removed catalog/path record, so deleted tail data cannot be mistaken for a later first title. A host test covers complete range erasure, failure stop, and invalid ranges.
+- Moved the “Delete newest title only” notice to the free header area of the popup; it no longer covers the bottom menu row. Added source checks for the notice placement.
+- Focused NOR/artwork/progress/delete/popup tests passed. `scripts/rebuild-and-verify-audit.sh` passed the production build, host regressions, JS/browser checks, Cppcheck, and whitespace check before the final notice-coordinate adjustment; after that adjustment the production image was rebuilt and the popup regression passed. The image is 2,010,712 bytes (86,440 bytes below the 2 MiB limit), SHA-256 `cfd295b871d831ecaa894e1031752b602b716da3973c38e5b058057be66c686d`; verified `DS Style Merkin Mix 8.3.0`.
+- Refreshed the hardware-test candidate at `files/candidate/8.3.0-nor-confirmation-test/ezkernelnew.bin`. No hardware test, commit, push, or publication is claimed; verify deep-path artwork, deleting all titles then writing/booting a new first title, formatting cancellation, and the corrected menu notice on the cartridge before release.
+
+## 2026-11-06 — NOR confirmation and filename-artwork test build
+
+- Owner hardware report: the NOR game-management popup no longer shows A/B button guidance, and the format confirmation text can overlap the last `Save save data` menu row. Review traced the hint regression to commit `1b6d240`, which removed `Show_MENU_btn()` while switching popup rendering without replacing its text labels.
+- Restored translated A/B hints using `gl_menu_btn` through `Launcher_DrawPopupButtonHints()` and wired it into the NOR menu plus surviving confirmation dialogs. Before opening the format confirmation, the popup panel and hints are redrawn so the menu rows are cleared; this prevents the confirmation at y=103 from covering the menu's last row at y=101.
+- Added `tests/popup-button-hints-host.c` and `scripts/test-popup-button-hints-host.sh`, covering the hint text/coordinates, NOR menu wiring, and panel redraw before format confirmation. The focused test and NOR flash/catalog host tests pass.
+- Fixed the NOR artwork lookup gap: after CUSTOM filename art and GBA header-code art miss, `Launcher_LoadNorThumbnail()` now checks `/SYSTEM/IMGS/<ROM basename>.bmp` or `/SYSTEM/IMGS2/<ROM basename>.bmp` according to the selected art style. Root-named artwork is not marked CUSTOM. The host regression extracts and tests the production loader, fallback priority, invalid/missing inputs, and both art roots; added it to the audit runner.
+- Validation passed: `scripts/rebuild-and-verify-audit.sh` completed, including production build, configured Cppcheck, popup/art fallback regressions, browser and JavaScript checks. Every `scripts/test-*.sh` host suite passed; `git diff --check` passed.
+- Refreshed test candidate: `files/candidate/8.3.0-nor-confirmation-test/ezkernelnew.bin`, 2,010,296 bytes, SHA-256 `d625c2e8ee56325509bd12e3398dee7b43e61933e62075054704ab097130d0b1`; verified `DS Style Merkin Mix 8.3.0` in the binary. This is a hardware-test candidate only, not a release; no hardware testing, commit, push, or publication is claimed. Keep the published `v8.3.0` unchanged until the owner tests it.
+
 ## 2026-11-05 — Full-codebase navigation audit checkpoint
 
 - Audited the active carousel path and prior performance evidence on `main` at `1202973`. Ordinary adjacent movement shifts a fixed three-slot cache and loads at most one newly exposed neighbor; rendering work is a fixed three/four images and five animation frames, with no loop over all titles. No count-based cache invalidation or 60-title branch was found.

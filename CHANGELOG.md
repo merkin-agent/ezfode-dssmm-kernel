@@ -1,5 +1,21 @@
 # Changelog
 
+## DS Style Merkin Mix 8.3.0
+
+Stable release with the 8.3.0 interface refinements, startup updates, and validated launcher memory-placement improvements.
+
+### Changes since 8.2.0
+
+- Added eased Start-screen corner markers, refined menu sounds and pop-ups, and launch feedback with a loading ring and theme-matched fade.
+- Refined startup so menu preparation can continue while startup audio finishes, without an artificial splash hold.
+- Added the clock-based Auto theme (dark from 20:00 to 08:00), grouped artwork controls under View options, and Open SYSTEM access to support files.
+- Enabled wrap-around browsing and menus by default while preserving saved Off preferences; added **On, Not SYSTEM** for SYSTEM browsing.
+- Added double-tap Select to add or remove a favourite without a confirmation pop-up, and added **Boot to** while keeping the Start screen available.
+- Updated the Saving Game Data popup to show the selected game's box artwork.
+- Fixed Clean list Off in browser titles, aligned help-page headings, and aligned LED setting values.
+- Moved the thumbnail scaling lookup maps into IWRAM and two infrequently used path buffers into EWRAM; preserved a conservative IWRAM-to-IRQ-stack layout margin.
+- Preserved the optional Clean list setting and Remember cheats support.
+
 ## DS Style Merkin Mix 8.3.0-rc3 — exploratory test candidate
 
 This is an exploratory test build, not a stable release.

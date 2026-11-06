@@ -11,6 +11,7 @@ Download `ezkernelnew.bin` from [Merkin Mix releases](https://github.com/voluptu
 
 ## What Merkin Mix changes
 
+- **8.3.0:** Refined startup, menu feedback and Start-screen motion; added Auto theme, grouped artwork settings, Open SYSTEM, default wrap-around with saved preferences preserved, and Boot to. Clean list and Remember cheats remain optional. Thumbnail scale maps now reside in IWRAM.
 - Mirrored SD-card artwork lookup for multi-system libraries, with custom and built-in thumbnail fallbacks.
 - Selective transparency in marked thumbnails, including support in animated carousel frames. Enabled artwork borders use rectangular or rounded outlines.
 - Optional **Settings → Games → Remember cheats**, off by default, with localized labels (Thai uses English). Selections save when leaving the cheat editor and reload for the same game, including launch without reopening the editor. Collapsing a group preserves its selections, clamps the cursor and clears stale rows.

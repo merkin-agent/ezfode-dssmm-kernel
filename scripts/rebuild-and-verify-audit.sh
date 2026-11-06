@@ -63,6 +63,9 @@ printf 'GBA rules: %s/gba_rules\n' "$devkitarm"
 printf '\nRunning production Makefile build (without cleanup)...\n'
 make
 
+printf '\nChecking IWRAM scale-map placement and IRQ-stack margin...\n'
+bash scripts/test-launcher-iwram-placement.sh
+
 printf '\nRunning FAT-table capacity regression test...\n'
 scripts/test-fat-table-builder-host.sh
 

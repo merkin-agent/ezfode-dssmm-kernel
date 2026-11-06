@@ -591,12 +591,12 @@ char p_recently_play[10][512]EWRAM_BSS;
 static u8 launcher_virtual_gamecode[10][4]EWRAM_BSS;
 static u8 launcher_virtual_gamecode_valid[10]EWRAM_BSS;
 TCHAR currentpath[MAX_path_len];//
-TCHAR currentpath_temp[MAX_path_len];
+TCHAR currentpath_temp[MAX_path_len]EWRAM_BSS;
 TCHAR current_filename[256];
 
 static u32 recents_view_active = 0;
 static u32 recents_view_favourites = 0;
-static TCHAR recents_return_path[MAX_path_len];
+static TCHAR recents_return_path[MAX_path_len]EWRAM_BSS;
 static u32 recents_return_show_offset = 0;
 static u32 recents_return_file_select = 0;
 static u32 recents_return_folder_select = 1;
@@ -800,13 +800,14 @@ static u8 launcher_thumbnail_workspace_mode = 0xFF;
 #define launcher_vert_prev_scaled launcher_thumbnail_workspace.vertical.prev
 #define launcher_vert_selected_scaled launcher_thumbnail_workspace.vertical.selected
 #define launcher_vert_next_scaled launcher_thumbnail_workspace.vertical.next
-static u8 launcher_scale84_x[84]EWRAM_BSS;
-static u8 launcher_scale56_y[56]EWRAM_BSS;
-static u8 launcher_scale48_x[48]EWRAM_BSS;
-static u8 launcher_scale32_y[32]EWRAM_BSS;
-static u8 launcher_scale80_56[56]EWRAM_BSS;
-static u8 launcher_scale80_37[37]EWRAM_BSS;
-static u8 launcher_scale80_32[32]EWRAM_BSS;
+/* Read once per output pixel during scaling; keep these small lookup maps in IWRAM. */
+static u8 launcher_scale84_x[84] __attribute__((section(".iwram.data")));
+static u8 launcher_scale56_y[56] __attribute__((section(".iwram.data")));
+static u8 launcher_scale48_x[48] __attribute__((section(".iwram.data")));
+static u8 launcher_scale32_y[32] __attribute__((section(".iwram.data")));
+static u8 launcher_scale80_56[56] __attribute__((section(".iwram.data")));
+static u8 launcher_scale80_37[37] __attribute__((section(".iwram.data")));
+static u8 launcher_scale80_32[32] __attribute__((section(".iwram.data")));
 static u8 launcher_scale_maps_ready = 0;
 static u8 launcher_list_art_span_count[160]EWRAM_BSS;
 static u8 launcher_list_art_span_start[160][LAUNCHER_LIST_ART_MAX_SPANS]EWRAM_BSS;

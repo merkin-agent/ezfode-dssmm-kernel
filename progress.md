@@ -9,6 +9,13 @@
 - Hardware report: first NOR title boots. A newly written non-first title showed a white screen; one subsequent write failed with a file error just over halfway. After rebooting and deleting the white-screen entry, a larger title was written into the freed tail and booted successfully. The intermittent white-screen/file-error cause remains unresolved; the successful larger title at the same tail position argues against a deterministic general offset bug. Do not claim broad hardware validation.
 - Existing upstream PR #2 advances with the pushed `main` head. Updating its title/body was rejected by the GitHub API with HTTP 403 `Resource not accessible by integration`; PR metadata remains stale at 8.3.0-rc1. The fork release is published; no merge is claimed.
 
+## 2026-11-06 — Adversarial review since v8.3.0
+
+- Reviewed the NOR catalog/path sidecar, artwork fallbacks, format and popup flows, full-range delete, and NOR source-path changes. No changed `rompage` calculation or deterministic second-title offset regression was found. The owner's later successful boot of a larger title from the freed tail weighs against a deterministic page-offset defect, but does not explain the earlier white screen.
+- Medium reliability risk: catalog plus 64 path records are persisted by one in-place S71 sector erase/program (24,832 bytes total: 8,448-byte catalog plus 16,384-byte sidecar). `NOR_CommitCatalogSlot()` rolls RAM back on persistence failure but cannot restore a sector interrupted during programming. This extends the existing non-atomic metadata update; power-loss recovery is untested.
+- Low diagnosability risk: `Loadfile2NOR()` returns the same generic error for SD seek/read, NOR erase/program, and metadata commit failures. A mid-write failure leaves an unlisted partial tail image; the next write reuses the tail and erases its allocated blocks. The reported halfway file error cannot be attributed to SD or NOR hardware based on current evidence.
+- Audit script passed after correcting the NOR delete host harness stubs. No code changes were made from this review. The white-screen observation remains unresolved and broad hardware validation is not claimed.
+
 ## 2026-11-06 — NOR artwork, formatting, deletion, and notice follow-up
 
 - Added a NOR metadata sidecar for each title's source directory so mirrored artwork lookup supports deep paths without changing the catalog structure or save identity. Legacy records fall back safely; title art still checks custom art, header-code art, mirrored art, then root filename art.

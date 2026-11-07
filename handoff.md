@@ -1,5 +1,14 @@
 # DS Style Kernel Audit — Standalone Handoff
 
+## 2026-11-07 — Header-art fast-open optimization candidate
+
+- Confirmed the slowdown mechanism: normal directory browsing already stores each title's name and size, but header-code art fallback reopens the ROM by full path to read bytes at `0xAC`. FatFs searches the ROM directory from its beginning for every newly loaded title. Filename-matched art returns before this ROM open; Recent/Favourites already cache codes while building their virtual lists.
+- Added FAT/FAT32 read-only open-by-directory-entry support. The ordinary file-list scan records each ROM's SFN-entry offset in a 2,048-byte PSRAM side table, kept aligned with file records through sorting. Fast open resolves the parent directory, checks the expected SFN and file size at the saved offset, then opens the ROM. A failed/stale validation falls back to the ordinary path open. exFAT and lock/reentrant FatFs configurations use the original path. Artwork lookup priority is unchanged.
+- PSRAM budget is compile-time checked: 61,440 bytes for 512 file records plus 2,048 bytes for offsets = 63,488 of 65,536 bytes, leaving 2,048 bytes unused. No per-title EWRAM allocation was added.
+- Extended `scripts/test-carousel-lookup-scaling-host.sh` with the real FatFs fast-open implementation, including LFN alias reads, stale-name/size rejection and fallback. At 240 files the normal late-name open used 965 `dir_next` operations; the validated indexed open used 4 (parent-path resolution only). This is host operation-count evidence, not GBA timing.
+- Focused FatFs long-name and carousel-scaling tests pass. `scripts/rebuild-and-verify-audit.sh` passes: target build, IWRAM guard, launcher/NOR/settings/browser regressions, JS syntax, whitespace and Cppcheck. Build size is 2,012,648 bytes (84,504 bytes below 2 MiB).
+- Hardware-test candidate: `files/candidate/8.4.1-header-art-fast-open-test/ezkernelnew.bin`, 2,012,648 bytes, SHA-256 `2284fc165917ed8409e24623c12a319b89d05059fa0d43ba501c3b1c8b2db025`, About label `DS Style Merkin Mix 8.4.1`. Hardware scrolling behavior remains unverified; published v8.4.1 is unchanged.
+
 ## 2026-11-07 — 8.4.1 TCHK artwork correction confirmed
 
 - The owner confirmed the fix on hardware: Title art now appears for root-level `AGS Aging Cartridge.gba`, whose header code is `TCHK`; its image is `/SYSTEM/IMGS/T/C/TCHK.bmp`. The matching Box art remains `/SYSTEM/IMGS2/AGS Aging Cartridge.bmp`.

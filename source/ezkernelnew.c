@@ -490,11 +490,17 @@ u32 list_game_total;
    before any game or plug-in is loaded over PSRAM. */
 #define LAUNCHER_FILE_LIST_PSRAM_ADDRESS 0x08FF0000
 #define LAUNCHER_FILE_LIST_PSRAM_SIZE 0x10000
+#define LAUNCHER_FILE_DIRENT_INDEX_ADDRESS \
+	(LAUNCHER_FILE_LIST_PSRAM_ADDRESS + (sizeof(FM_FILE_FS) * MAX_files))
+#define LAUNCHER_FILE_DIRENT_INVALID 0xFFFFFFFFU
 typedef char LauncherFileListFitsPSRAM[
 	(sizeof(FM_FILE_FS) * MAX_files <= LAUNCHER_FILE_LIST_PSRAM_SIZE) ? 1 : -1];
 typedef char LauncherFileRecordUsesExpectedPSRAMBudget[
 	(sizeof(FM_FILE_FS) == 120) ? 1 : -1];
+typedef char LauncherFileAndDirentIndexesFitPSRAM[
+	((sizeof(FM_FILE_FS) + sizeof(u32)) * MAX_files <= LAUNCHER_FILE_LIST_PSRAM_SIZE) ? 1 : -1];
 #define pFilename_buffer ((FM_FILE_FS*)LAUNCHER_FILE_LIST_PSRAM_ADDRESS)
+#define pFilename_dirent_offset ((u32*)LAUNCHER_FILE_DIRENT_INDEX_ADDRESS)
 
 FM_NOR_FS pNorFS[MAX_NOR]EWRAM_BSS;
 FM_Folder_FS pFolder[MAX_folder]EWRAM_BSS;
@@ -547,6 +553,7 @@ static void Launcher_StoreFileRecord(u32 index, const TCHAR *filename, const TCH
 	}
 	pFilename_temp.filesize = filesize;
 	dmaCopy(&pFilename_temp, &pFilename_buffer[index], sizeof(FM_FILE_FS));
+	pFilename_dirent_offset[index] = LAUNCHER_FILE_DIRENT_INVALID;
 }
 
 static const TCHAR *Launcher_FileIdentityName(const FM_FILE_FS *record)
@@ -6027,6 +6034,7 @@ void Sort_file(u32 game_total_SD)
 	{
 		for(i = gap; i < game_total_SD; i++)
 		{
+			u32 dirent_offset = pFilename_dirent_offset[i];
 			dmaCopy(&pFilename_buffer[i], &pFilename_temp, sizeof(FM_FILE_FS));
 			for(j = i; j >= gap; j -= gap)
 			{
@@ -6039,8 +6047,10 @@ void Sort_file(u32 game_total_SD)
 				else if(strcmp(pFilename_sort_probe.filename, pFilename_temp.filename) < 0)
 					break;
 				dmaCopy(&pFilename_sort_probe, &pFilename_buffer[j], sizeof(FM_FILE_FS));
+				pFilename_dirent_offset[j] = pFilename_dirent_offset[j - gap];
 			}
 			dmaCopy(&pFilename_temp, &pFilename_buffer[j], sizeof(FM_FILE_FS));
+			pFilename_dirent_offset[j] = dirent_offset;
 		}
 	}
 }
@@ -6567,7 +6577,15 @@ static u32 Launcher_LoadExtensionDefaultThumbnail(const char *filename, u8 *dst)
 	return Launcher_LoadThumbnailFile(picpath, dst);
 }
 
-static u32 Launcher_LoadThumbnailFromRomHeaderPath(const char *rom_dir, const char *filename, u8 *dst)
+typedef struct
+{
+	DWORD entry_offset;
+	const TCHAR *expected_sfn;
+	DWORD expected_size;
+} LauncherRomDirentHint;
+
+static u32 Launcher_LoadThumbnailFromRomHeaderIndexedPath(const char *rom_dir,
+	const char *filename, u8 *dst, const LauncherRomDirentHint *dirent_hint)
 {
 	/* The parent path and final LFN are independently bounded by MAX_path_len. */
 	char rompath[MAX_path_len * 2 + 2];
@@ -6576,7 +6594,13 @@ static u32 Launcher_LoadThumbnailFromRomHeaderPath(const char *rom_dir, const ch
 
 	if(!filename || !dst || !Launcher_BuildRomFullPath(rom_dir, filename, rompath, sizeof(rompath)))
 		return 0;
-	res = f_open(&gfile, rompath, FA_READ);
+	res = FR_NO_FILE;
+	if(dirent_hint && dirent_hint->entry_offset != LAUNCHER_FILE_DIRENT_INVALID &&
+		dirent_hint->expected_sfn)
+		res = f_open_by_dirent(&gfile, rom_dir, dirent_hint->entry_offset,
+			dirent_hint->expected_sfn, dirent_hint->expected_size);
+	if(res != FR_OK)
+		res = f_open(&gfile, rompath, FA_READ);
 	if(res != FR_OK)
 		return 0;
 	f_lseek(&gfile, 0xAC);
@@ -6587,12 +6611,18 @@ static u32 Launcher_LoadThumbnailFromRomHeaderPath(const char *rom_dir, const ch
 	return Launcher_LoadThumbnailByGameCode(GAMECODE, dst);
 }
 
+static u32 Launcher_LoadThumbnailFromRomHeaderPath(const char *rom_dir, const char *filename, u8 *dst)
+{
+	return Launcher_LoadThumbnailFromRomHeaderIndexedPath(rom_dir, filename, dst, 0);
+}
+
 /* Used by the list/carousel as well as the start-screen preview.  Thumbnail
    data is kept in the launcher's existing three-slot PSRAM cache; navigation
    invalidates that cache, so a folder's artwork is never retained as the
    active artwork after leaving the folder. */
 static u32 Launcher_LoadThumbnailForPath(const char *filename, const char *rom_dir,
-	u8 *dst, const u8 *known_gamecode, u32 *custom_thumbnail)
+	u8 *dst, const u8 *known_gamecode, u32 *custom_thumbnail,
+	const LauncherRomDirentHint *dirent_hint)
 {
 	if(custom_thumbnail)
 		*custom_thumbnail = 0;
@@ -6617,7 +6647,7 @@ static u32 Launcher_LoadThumbnailForPath(const char *filename, const char *rom_d
 		if(known_gamecode && Launcher_IsValidGameCodeBytes(known_gamecode) &&
 		Launcher_LoadThumbnailByGameCode(known_gamecode, dst))
 			return 1;
-		if(Launcher_LoadThumbnailFromRomHeaderPath(rom_dir, filename, dst))
+		if(Launcher_LoadThumbnailFromRomHeaderIndexedPath(rom_dir, filename, dst, dirent_hint))
 			return 1;
 	}
 
@@ -6650,7 +6680,7 @@ u32 Load_ThumbnailEx(TCHAR *pfilename_pic, u8 *dst)
 		filename = rom_name;
 	else if(f_getcwd(rom_dir, sizeof(rom_dir) / sizeof(*rom_dir)) != FR_OK)
 		strcpy(rom_dir, "/");
-	return Launcher_LoadThumbnailForPath(filename, rom_dir, dst, 0, 0);
+	return Launcher_LoadThumbnailForPath(filename, rom_dir, dst, 0, 0, 0);
 }
 
 u32 Load_Thumbnail(TCHAR *pfilename_pic)
@@ -8050,6 +8080,8 @@ static u32 Launcher_LoadThumbDataForIndex(u32 absolute_index, u8 *thumb_data, u3
 	TCHAR identity_alias[13];
 	LauncherIndexedNameContext name_context;
 	const u8 *known_gamecode = 0;
+	LauncherRomDirentHint dirent_hint;
+	const LauncherRomDirentHint *dirent_hint_ptr = 0;
 	u32 virtual_index = 0;
 	u32 total_entries = Launcher_GetTotalEntries();
 
@@ -8123,12 +8155,18 @@ static u32 Launcher_LoadThumbDataForIndex(u32 absolute_index, u8 *thumb_data, u3
 		name = launcher_resolved_entry_name;
 		strncpy(rom_dir, currentpath, sizeof(rom_dir) - 1);
 		rom_dir[sizeof(rom_dir) - 1] = '\0';
+		dirent_hint.entry_offset = pFilename_dirent_offset[absolute_index - folder_total];
+		dirent_hint.expected_sfn = identity;
+		dirent_hint.expected_size = record->filesize;
+		if(dirent_hint.entry_offset != LAUNCHER_FILE_DIRENT_INVALID)
+			dirent_hint_ptr = &dirent_hint;
 	}
 
 	if(!name)
 		return 0;
 	return Launcher_LoadThumbnailForPath(name, rom_dir,
-		thumb_data - LAUNCHER_THUMB_BMP_HEADER, known_gamecode, custom_thumbnail);
+		thumb_data - LAUNCHER_THUMB_BMP_HEADER, known_gamecode, custom_thumbnail,
+		dirent_hint_ptr);
 }
 
 static void Launcher_LoadThumbCacheForIndex(LauncherThumbCache *cache, u32 absolute_index)
@@ -14924,7 +14962,8 @@ refind_file:
 			{
 				while(1)
 				{
-					res = f_readdir(&dir, &fileinfo);                   //read next
+					DWORD file_dirent_offset = LAUNCHER_FILE_DIRENT_INVALID;
+					res = f_readdir_with_offset(&dir, &fileinfo, &file_dirent_offset); //read next and retain FAT entry offset
 					//DEBUG_printf("=%x %s %x %x",res, fileinfo.fname,fileinfo.fname[0],fileinfo.fattrib);
 					//wait_btn();
 					if (res != FR_OK || fileinfo.fname[0] == 0) break;
@@ -14943,6 +14982,7 @@ refind_file:
 						if ( game_total_SD >= MAX_files )//cut
 							continue;
 						Launcher_StoreFileRecord(game_total_SD, fileinfo.fname, fileinfo.altname, fileinfo.fsize);
+						pFilename_dirent_offset[game_total_SD] = file_dirent_offset;
 						if(launcher_list_folders && (launcher_sd_launchable_file_count == 0) &&
 							Launcher_IsGameFilename(fileinfo.fname))
 							launcher_sd_launchable_file_count = 1;

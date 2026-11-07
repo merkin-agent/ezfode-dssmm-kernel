@@ -4,6 +4,7 @@
 
 - Respect the configured Title or Box artwork style in the startup save-recovery popup. Corrected the Box image crop to use an eight-pixel offset rather than eight bytes, preserving the complete centered 32×32 art.
 - Allow GBA header-code artwork lookup when the matching recent entry is unavailable or points to a root-level title; preserve long save basenames for that lookup.
+- Accept 16-bit Title artwork with a zero BMP planes field in the startup save-recovery popup; confirmed on hardware with root-level AGS Aging Cartridge header art (`TCHK`).
 - Distinguish NOR source-file, device, erase, program, and catalog-save failures in the error display.
 - Use string pointers for error messages so longer UTF-8 translations cannot overflow a fixed stack buffer.
 

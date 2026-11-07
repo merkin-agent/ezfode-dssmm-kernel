@@ -1,5 +1,11 @@
 # DS Style Kernel Audit — Standalone Handoff
 
+## 2026-11-07 — 8.4.1 TCHK artwork correction confirmed
+
+- The owner confirmed the fix on hardware: Title art now appears for root-level `AGS Aging Cartridge.gba`, whose header code is `TCHK`; its image is `/SYSTEM/IMGS/T/C/TCHK.bmp`. The matching Box art remains `/SYSTEM/IMGS2/AGS Aging Cartridge.bmp`.
+- The supplied 120×80, 16-bit BI_RGB, top-down BMP has the expected 54-byte pixel offset and 19,254-byte size, but its planes field is 0. The startup save-art validator now accepts planes=0 or planes=1; all other format/dimension checks remain enforced.
+- Rebuilt the release image with `make -B`. Final v8.4.1 binary: `files/candidate/8.4.1/ezkernelnew.bin`, 2,012,200 bytes, SHA-256 `76823ecae8cd48f3ae5327f85c0e3898a105f7dad1da9ff25ae8610278fdc9ab`. The tested image and updated source archive are published on the existing v8.4.1 release under the same tag.
+
 ## 2026-11-07 — Adversarial review and 8.4.1 release
 
 - Reviewed every source, test, and build-script change after base `v8.4.0`, plus the current uncommitted save-popup work. Found and fixed: (1) UTF-8 Thai NOR errors overflowing `Show_error_num()`'s 50-byte local buffer; it now selects a string pointer, (2) Box art crop offset mixing byte and pixel units, (3) forced Box mode ignoring the saved artwork style, (4) invalid dimensioned artwork preventing later header fallback, and (5) startup truncation of save basenames at 99 bytes, which could block the root-ROM fallback when RECENT rejects an overlong component. The root fallback now derives root `.gba`/`.agb` names from `.sav` identity when RECENT is missing or resolves to `/`.

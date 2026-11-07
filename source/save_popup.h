@@ -17,7 +17,8 @@ static u32 Launcher_SaveArtworkFormatValid(const u8 *raw, u32 width, u32 height)
     return raw[0] == 'B' && raw[1] == 'M' && offset == 54 && dib == 40 &&
         file_width == width &&
         (file_height == height || file_height == (0u - height)) &&
-        raw[26] == 1 && !raw[27] && raw[28] == 16 && !raw[29] && !compression;
+        (raw[26] == 0 || raw[26] == 1) && !raw[27] &&
+        raw[28] == 16 && !raw[29] && !compression;
 }
 
 /* Save recovery metadata keeps the ROM basename but not its directory. If the

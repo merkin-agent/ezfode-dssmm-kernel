@@ -1,11 +1,11 @@
 # DS Style Kernel Audit — Standalone Handoff
 
-## 2026-11-07 — Adversarial review and 8.4.1 release candidate
+## 2026-11-07 — Adversarial review and 8.4.1 release
 
 - Reviewed every source, test, and build-script change after base `v8.4.0`, plus the current uncommitted save-popup work. Found and fixed: (1) UTF-8 Thai NOR errors overflowing `Show_error_num()`'s 50-byte local buffer; it now selects a string pointer, (2) Box art crop offset mixing byte and pixel units, (3) forced Box mode ignoring the saved artwork style, (4) invalid dimensioned artwork preventing later header fallback, and (5) startup truncation of save basenames at 99 bytes, which could block the root-ROM fallback when RECENT rejects an overlong component. The root fallback now derives root `.gba`/`.agb` names from `.sav` identity when RECENT is missing or resolves to `/`.
 - Owner's 8.3.0-rc3 comparison confirms the Box offset defect predates the post-8.4.0 RAM changes. The corrected source offset now selects columns 8–39 of the scaled buffer; exact hardware appearance remains unverified.
 - `scripts/rebuild-and-verify-audit.sh` passes with devkitARM 16.1.0, IWRAM placement guard (1,328-byte static-to-IRQ-stack gap), all wired host/browser regressions, JS syntax, whitespace, and Cppcheck. No remaining code-review findings identified in the changed code. Hardware verification remains pending.
-- 8.4.1 candidate: `files/candidate/8.4.1/ezkernelnew.bin`, 2,012,200 bytes (84,952 bytes below 2 MiB), SHA-256 `b4daee2bd76f86022ba11bc4ecb07e44e82762176f330a2e44725e84066f5a5d`. Embedded About label is `DS Style Merkin Mix 8.4.1`.
+- Published v8.4.1 from commit `903bce142e51a5f516998bd2b89d9f326e06528a`. Candidate/release binary: `files/candidate/8.4.1/ezkernelnew.bin`, 2,012,200 bytes (84,952 bytes below 2 MiB), SHA-256 `b4daee2bd76f86022ba11bc4ecb07e44e82762176f330a2e44725e84066f5a5d`. Embedded About label is `DS Style Merkin Mix 8.4.1`. Release assets include the kernel and source archive at https://github.com/merkin-agent/ezfode-dssmm-kernel/releases/tag/v8.4.1. Existing upstream PR #2 now points to the release commit; PR metadata could not be updated because GitHub returned 403 (`Resource not accessible by integration`).
 
 ## 2026-11-07 — Correct box-art crop offset units
 

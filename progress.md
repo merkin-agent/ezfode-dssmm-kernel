@@ -1,5 +1,53 @@
 # DS Style Kernel Audit Progress
 
+## 2026-11-07 — Adversarial review and 8.4.1 release candidate
+
+- Reviewed every source, test, and build-script change after base `v8.4.0`, plus the current uncommitted save-popup work. Found and fixed: (1) UTF-8 Thai NOR errors overflowing `Show_error_num()`'s 50-byte local buffer; it now selects a string pointer, (2) Box art crop offset mixing byte and pixel units, (3) forced Box mode ignoring the saved artwork style, (4) invalid dimensioned artwork preventing later header fallback, and (5) startup truncation of save basenames at 99 bytes, which could block the root-ROM fallback when RECENT rejects an overlong component. The root fallback now derives root `.gba`/`.agb` names from `.sav` identity when RECENT is missing or resolves to `/`.
+- Owner's 8.3.0-rc3 comparison confirms the Box offset defect predates the post-8.4.0 RAM changes. The corrected source offset now selects columns 8–39 of the scaled buffer; exact hardware appearance remains unverified.
+- `scripts/rebuild-and-verify-audit.sh` passes with devkitARM 16.1.0, IWRAM placement guard (1,328-byte static-to-IRQ-stack gap), all wired host/browser regressions, JS syntax, whitespace, and Cppcheck. No remaining code-review findings identified in the changed code. Hardware verification remains pending.
+- 8.4.1 candidate: `files/candidate/8.4.1/ezkernelnew.bin`, 2,012,200 bytes (84,952 bytes below 2 MiB), SHA-256 `b4daee2bd76f86022ba11bc4ecb07e44e82762176f330a2e44725e84066f5a5d`. Embedded About label is `DS Style Merkin Mix 8.4.1`.
+
+## 2026-11-07 — Correct box-art crop offset units
+
+- Owner identified the remaining bar/cutoff. `pReadCache` is a byte pointer, so `pReadCache + 0x18008` advanced 8 bytes (4 RGB555 pixels), while the scaler centered the 32×32 Box art in columns 8–39 of the 48×32 buffer. The popup therefore drew columns 4–35: four pixels of empty staging on the left and missed the final four art pixels on the right.
+- Changed the crop to add 8 after casting the buffer to `u16*`, retaining the mathematically centered screen origin `x=53`. This directly fixes the byte-versus-pixel offset; the same defect exists in the 8.3.0-rc3 code, consistent with the owner's test that the misalignment predates current RAM work.
+- Rebuilt with `make -B`. The refreshed latest candidate remains `files/candidate/8.4.0-save-popup-root-header-fallback-test/ezkernelnew.bin`, 2,012,104 bytes, SHA-256 `9f51f0eb666afca44ae14e2e8d01fc1af72697cbc6dc8e1b02b1c46fa0e0b356`. Hardware verification is pending.
+
+## 2026-11-07 — Root-level header-art fallback and rc3 alignment baseline
+
+- Owner reports header-code art is still missing for a game at the SD root, while it appears for other games. Added a fallback for the case where the RECENT path cannot be resolved: for a `.sav` identity, probe the same basename with `.gba` and `.agb` at `/`, read its GBA header code, then load style-selected header art. Existing recent-entry and folder lookup order remains intact, and `GAMECODE` is restored afterward.
+- Built candidate: `files/candidate/8.4.0-save-popup-root-header-fallback-test/ezkernelnew.bin`, 2,012,104 bytes, SHA-256 `9f51f0eb666afca44ae14e2e8d01fc1af72697cbc6dc8e1b02b1c46fa0e0b356`. Hardware verification is pending.
+- Owner confirmed the box-art misalignment is also present on 8.3.0-rc3. Source comparison confirms rc3 already forced Box mode and drew the 32×32 image at `x=53`; therefore the misalignment predates current RAM/artwork-fallback work. Do not attribute it to these changes. Exact intended box-art bounds remain unconfirmed.
+
+## 2026-11-07 — Allow header-matched title art for save recovery
+
+- Owner reports Box art appears by exact-name match, while Title mode shows no artwork when only header-code art is available. Found the save popup gated *all* last-played fallbacks on equality between the save basename and the recent ROM basename. This incorrectly prevented the GBA header-code lookup when those names differ.
+- Kept mirrored path/name art behind the exact-stem check, but now try the recent GBA ROM's header-code artwork independently when exact-name artwork is unavailable. The configured Title/Box style still selects the expected artwork dimensions and folder. Preserve and restore the preexisting `GAMECODE` around the lookup.
+- `make -B` passed. Candidate: `files/candidate/8.4.0-save-popup-header-art-test/ezkernelnew.bin`, 2,011,952 bytes, SHA-256 `18097ae46c52dfe8b67d07c73dc6edfbe4815f552883b1db8c42d916421b4aec`. Hardware verification is pending.
+
+## 2026-11-07 — Save-popup alignment remains unresolved on hardware
+
+- Owner reports the style-aware candidate still shows a white strip at the left and clips artwork on the right. The latest test build therefore does not resolve the visual defect; do not treat the alignment as fixed.
+- Reviewed RAM lifetimes: the staging buffer at `pReadCache+0x18000` overlaps an inactive carousel thumbnail slot by address, but `Check_save_flag()` runs before browser/thumb-cache initialization and the intervening splash fade, background draw, and topbar draw write directly to VRAM. No evidence links the recent EWRAM/cache changes to this boot-only image.
+- The artwork-rendering change in `1e09f9e` is directly relevant: it changed the popup from full 48×32 title art to a 32×32 box-art crop. Style selection is now respected, but Box mode still uses that crop. Exact visible source bounds/background are undetermined from text-only reports; avoid further coordinate guesses until the popup photo and active Title/Box setting are known.
+
+## 2026-11-07 — Save-popup artwork style regression fix
+
+- The popup ran after `Launcher_ReadThumbnailStyle()`, but `Launcher_LoadSaveArtwork()` forced Box mode during lookup. This made it read `/SYSTEM/IMGS2`, reject 120×80 Title art, and scale/draw all accepted artwork as a cropped 32×32 square. The actual configured style is available and should govern both lookup and drawing.
+- Removed the forced style override. Title mode now loads/validates 120×80 art and draws its 48×32 staged image at `x=45`; Box mode loads/validates 80×80 art and draws only staged columns 8–39 as a 32×32 image at `x=53`, centered in the same 48-pixel slot. This avoids the left-shifted crop/right-edge cutoff from drawing those 32 columns at `x=45`.
+- `make -B` passed. Candidate: `files/candidate/8.4.0-save-popup-art-style-test/ezkernelnew.bin`, 2,011,952 bytes, SHA-256 `3145cba2392bfa8cabdb31ae6967b16a7bb7dfd2bf5e58469acce4025a0c6056`. Hardware verification is pending.
+
+## 2026-11-06 — Second save-popup artwork alignment candidate (exploratory)
+
+- After the owner reported that the `x=52` candidate remained misaligned, I shifted the artwork to `x=50` without enough evidence to justify that offset. The popup background is plain white stripes with no visible image-slot boundary; the original `x=53` centers the 32-pixel art in its 48-pixel staging slot. Source is restored to `x=53` pending a hardware photo or clear description of the intended bounds and gap direction.
+- The exploratory candidate is preserved at `files/candidate/8.4.0-save-popup-art-alignment-test-2/ezkernelnew.bin`: 2,011,904 bytes, SHA-256 `d0df76f594738ee9a4a029d78b09a572aa1f1753863fa837fa11b0d859503da4`; it has not been reported hardware-tested. Do not treat it as a validated fix. The earlier `x=52` candidate remains separately preserved.
+
+## 2026-11-06 — Save-popup box-art alignment test build
+
+- Shifted the restart save-data popup's square box art one pixel left, from `x=53` to `x=52`, addressing the owner's hardware report that the image sat slightly right and left a white sliver beside it.
+- `make -B` passed. Staged `files/candidate/8.4.0-save-popup-art-alignment-test/ezkernelnew.bin`: 2,011,904 bytes (85,248 bytes below the 2 MiB limit), SHA-256 `1f7a6d6d690ab21548604ef941fb7e14bbcc4b9048042499d8591ff916d179f7`; embedded About label verified as `DS Style Merkin Mix 8.4.0`.
+- Hardware-test candidate only: no hardware or host-regression verification was performed for the coordinate adjustment. Stable v8.4.0 is unchanged. Owner should verify the popup after restart and report whether the white sliver is gone.
+
 ## 2026-11-06 — NOR write error diagnostics and remaining known issue
 
 - Split NOR write results into source-file, unsupported-device, capacity, erase, program, and catalog-save outcomes. The UI now distinguishes SD/file failures from NOR erase/program and metadata-save failures, which makes the reported halfway write failure diagnosable on the next occurrence without relying on a specific NOR chip or board revision.

@@ -9531,46 +9531,46 @@ static void Launcher_ShowLaunchError(const char *message)
 
 void Show_error_num(u8 error_num)
 {
-    char msg[50];
+    char *msg;
     u32 launching = launcher_launch_screen_active;
     if(!launching) Launcher_ClearWithThemeBG(Launcher_GetBGImage(),90, 2, 90, 13);
 	switch(error_num)
 	{
 		case 0x0:
-			sprintf(msg,"%s",gl_error_0);
+			msg = gl_error_0;
 			break;
 		case 0x1:
-			sprintf(msg,"%s",gl_error_1);
+			msg = gl_error_1;
 			break;
 		case 0x2:
-			sprintf(msg,"%s",gl_error_2);
+			msg = gl_error_2;
 			break;
 		case 0x3:
-			sprintf(msg,"%s",gl_error_3);
+			msg = gl_error_3;
 			break;
 		case 0x4:
-			sprintf(msg,"%s",gl_error_4);
+			msg = gl_error_4;
 			break;
 		case 0x5:
-			sprintf(msg,"%s",gl_error_5);
+			msg = gl_error_5;
 			break;
 		case 0x6:
-			sprintf(msg,"%s",gl_error_6);
+			msg = gl_error_6;
 			break;
 		case 0x7:
-			sprintf(msg,"%s",gl_nor_device_error);
+			msg = gl_nor_device_error;
 			break;
 		case 0x8:
-			sprintf(msg,"%s",gl_nor_erase_error);
+			msg = gl_nor_erase_error;
 			break;
 		case 0x9:
-			sprintf(msg,"%s",gl_nor_program_error);
+			msg = gl_nor_program_error;
 			break;
 		case 0xA:
-			sprintf(msg,"%s",gl_nor_catalog_error);
+			msg = gl_nor_catalog_error;
 			break;
 		default:
-			sprintf(msg,"%s","error?");
+			msg = "error?";
 			break;
 	}
 
@@ -9730,10 +9730,10 @@ void Check_save_flag(void)
 			{
 				((u16*)SAV_info_buffer)[loopwrite] = Read_sav_info(loopwrite+2);
 			}
-            char display_name[100];
+            char display_name[MAX_path_len];
             u32 artwork;
-            memcpy(display_name, SAV_info_buffer, sizeof(display_name)-1);
-            display_name[sizeof(display_name)-1] = 0;
+            memcpy(display_name, SAV_info_buffer, sizeof(display_name) - 1);
+            display_name[sizeof(display_name) - 1] = 0;
             artwork = Launcher_LoadSaveArtwork(display_name);
             Launcher_EndSplash();
             Launcher_DrawThemeBGFull(Launcher_GetBGImage());

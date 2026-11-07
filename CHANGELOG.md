@@ -1,5 +1,12 @@
 # Changelog
 
+## DS Style Merkin Mix 8.4.1
+
+- Respect the configured Title or Box artwork style in the startup save-recovery popup. Corrected the Box image crop to use an eight-pixel offset rather than eight bytes, preserving the complete centered 32×32 art.
+- Allow GBA header-code artwork lookup when the matching recent entry is unavailable or points to a root-level title; preserve long save basenames for that lookup.
+- Distinguish NOR source-file, device, erase, program, and catalog-save failures in the error display.
+- Use string pointers for error messages so longer UTF-8 translations cannot overflow a fixed stack buffer.
+
 ## DS Style Merkin Mix 8.4.0
 
 ### NOR flash improvements
